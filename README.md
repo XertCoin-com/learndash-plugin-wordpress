@@ -1,5 +1,5 @@
 # learndash-plugin-wordpress
 
-sync -> LD to APP
+learndash-background-sync.php -> LD to APP
 
-back -> APP to LD
+learndash-background-back-sync.php -> APP to LD
