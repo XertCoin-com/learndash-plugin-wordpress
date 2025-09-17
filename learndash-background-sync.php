@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LearnDash Background Sync (to External Endpoint)
  * Description: Background-sends LearnDash user events (including points) to your secure endpoint—no UI shown to learners.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Pexelle
  * Requires PHP: 7.4
  * Requires at least: 6.0
@@ -14,9 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class LD_Background_Sync {
-	const OPTION_SETTINGS = 'ld_bg_sync_settings';
-	const OPTION_QUEUE    = 'ld_bg_sync_queue';
-	const CRON_HOOK       = 'ld_bg_sync_process_queue';
+	const OPTION_SETTINGS = 'ld_pexelle_sync_settings';
+	const OPTION_QUEUE    = 'ld_pexelle_sync_queue';
+	const CRON_HOOK       = 'ld_pexelle_sync_process_queue';
 	const VERSION         = '1.0.0';
 
 	private static $instance = null;
