@@ -31,7 +31,18 @@ class LD_Background_Sync {
 	private function __construct() {
 		// Defaults on first run
 		add_action( 'plugins_loaded', [ $this, 'maybe_set_defaults' ] );
+		add_action( 'admin_enqueue_scripts', [ $this, 'admin_assets' ] );
 
+		public function admin_assets( $hook ) {
+		if ( $hook !== 'settings_page_ld-bg-sync' ) { return; }
+		wp_enqueue_style( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.css', [], self::VERSION );
+		wp_enqueue_script( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.js', [ 'jquery' ], self::VERSION, true );
+		wp_localize_script( 'ldbg-admin', 'LDBG', [
+			'ajax'   => admin_url( 'admin-ajax.php' ),
+			'nonce'  => wp_create_nonce( 'ldbg_admin' ),
+				] );
+			}
+		
 		// Admin settings
 		if ( is_admin() ) {
 			add_action( 'admin_menu', [ $this, 'add_settings_page' ] );
@@ -355,5 +366,5 @@ class LD_Background_Sync {
 	}
 }
 
-LD_Background_Sync::instance();
+//LD_Background_Sync::instance();
 
