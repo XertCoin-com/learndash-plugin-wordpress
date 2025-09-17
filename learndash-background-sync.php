@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LearnDash Background Sync (to External Endpoint)
  * Description: Background-sends LearnDash user events (including points) to your secure endpoint—no UI shown to learners.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Pexelle
  * Requires PHP: 7.4
  * Requires at least: 6.0
@@ -14,9 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class LD_Background_Sync {
-	const OPTION_SETTINGS = 'ld_pexelle_sync_settings';
-	const OPTION_QUEUE    = 'ld_pexelle_sync_queue';
-	const CRON_HOOK       = 'ld_pexelle_sync_process_queue';
+	const OPTION_SETTINGS = 'ld_bg_sync_settings';
+	const OPTION_QUEUE    = 'ld_bg_sync_queue';
+	const CRON_HOOK       = 'ld_bg_sync_process_queue';
 	const VERSION         = '1.0.0';
 
 	private static $instance = null;
@@ -76,45 +76,6 @@ public function ajax_export_queue() {
 	wp_send_json_success( [ 'json' => $q ] );
 }
 
-
-	public function add_admin_menus() {
-	$icon_url = plugin_dir_url( __FILE__ ) . 'assets/pexelle-icon.png'; 
-	add_menu_page(
-		'Pexelle',                // page_title
-		'Pexelle',                // menu_title
-		'manage_options',         // capability
-		'pexelle',                // menu_slug
-		[ $this, 'render_settings_page' ], 
-		$icon_url,               
-		65                  
-	);
-
-	add_submenu_page(
-		'pexelle',                // parent slug
-		'Background Sync',        // page_title
-		'Background Sync',        // menu_title
-		'manage_options',         // capability
-		'ld-bg-sync',             // submenu slug
-		[ $this, 'render_settings_page' ] 
-	);
-
-
-	add_submenu_page(
-		'pexelle',
-		'Visit Pexelle',
-		'Visit Pexelle',
-		'manage_options',
-		'pexelle-visit',
-		[ $this, 'admin_redirect_to_pexelle' ]
-	);
-}
-
-public function admin_redirect_to_pexelle() {
-	wp_redirect( 'https://pexelle.com/', 301 );
-	exit;
-}
-
-	
 public function ajax_test_connection() {
 	$this->check_admin_ajax();
 	$s = $this->get_settings();
@@ -199,9 +160,10 @@ public function ajax_schedule_cron() {
 		
 		// Admin settings
 		if ( is_admin() ) {
-			add_action( 'admin_menu', [ $this, 'add_admin_menus' ] );
+			add_action( 'admin_menu', [ $this, 'add_settings_page' ] );
 			add_action( 'admin_init', [ $this, 'register_settings' ] );
 		}
+
 		// Queue processor (WP-Cron)
 		add_action( self::CRON_HOOK, [ $this, 'process_queue' ] );
 
