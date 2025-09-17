@@ -595,5 +595,4 @@ public function process_queue() {
 	}
 }
 
-//LD_Background_Sync::instance();
-
+LD_Background_Sync::instance();
