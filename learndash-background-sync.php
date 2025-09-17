@@ -76,6 +76,45 @@ public function ajax_export_queue() {
 	wp_send_json_success( [ 'json' => $q ] );
 }
 
+
+	public function add_admin_menus() {
+	$icon_url = plugin_dir_url( __FILE__ ) . 'assets/pexelle-icon.png'; 
+	add_menu_page(
+		'Pexelle',                // page_title
+		'Pexelle',                // menu_title
+		'manage_options',         // capability
+		'pexelle',                // menu_slug
+		[ $this, 'render_settings_page' ], 
+		$icon_url,               
+		65                  
+	);
+
+	add_submenu_page(
+		'pexelle',                // parent slug
+		'Background Sync',        // page_title
+		'Background Sync',        // menu_title
+		'manage_options',         // capability
+		'ld-bg-sync',             // submenu slug
+		[ $this, 'render_settings_page' ] 
+	);
+
+
+	add_submenu_page(
+		'pexelle',
+		'Visit Pexelle',
+		'Visit Pexelle',
+		'manage_options',
+		'pexelle-visit',
+		[ $this, 'admin_redirect_to_pexelle' ]
+	);
+}
+
+public function admin_redirect_to_pexelle() {
+	wp_redirect( 'https://pexelle.com/', 301 );
+	exit;
+}
+
+	
 public function ajax_test_connection() {
 	$this->check_admin_ajax();
 	$s = $this->get_settings();
@@ -160,10 +199,9 @@ public function ajax_schedule_cron() {
 		
 		// Admin settings
 		if ( is_admin() ) {
-			add_action( 'admin_menu', [ $this, 'add_settings_page' ] );
+			add_action( 'admin_menu', [ $this, 'add_admin_menus' ] );
 			add_action( 'admin_init', [ $this, 'register_settings' ] );
 		}
-
 		// Queue processor (WP-Cron)
 		add_action( self::CRON_HOOK, [ $this, 'process_queue' ] );
 
