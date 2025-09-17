@@ -1,1 +1,10 @@
-
+.ldbg-wrap .ldbg-tabs { display:flex; gap:8px; margin:16px 0; }
+.ldbg-wrap .ldbg-tab { padding:8px 12px; background:#fff; border:1px solid #ccd0d4; border-radius:4px; cursor:pointer; }
+.ldbg-wrap .ldbg-tab.active { background:#f6f7f7; font-weight:600; }
+.ldbg-panel .ldbg-card { background:#fff; border:1px solid #ccd0d4; border-radius:6px; padding:16px; margin-bottom:16px; }
+.ldbg-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+.ldbg-row { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+.ldbg-flex-grow { flex:1; }
+.ldbg-table code { font-size:12px; }
+.ldbg-pre { background:#111; color:#eee; padding:10px; border-radius:6px; max-height:280px; overflow:auto; }
+.link-delete { color:#b32d2e; border-color:#b32d2e; }
