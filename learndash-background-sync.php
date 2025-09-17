@@ -28,11 +28,125 @@ class LD_Background_Sync {
 		return self::$instance;
 	}
 
+private function check_admin_ajax() {
+	if ( ! current_user_can( 'manage_options' ) ) { wp_send_json_error( 'forbidden', 403 ); }
+	check_ajax_referer( 'ldbg_admin', 'nonce' );
+}
+
+public function ajax_process_now() {
+	$this->check_admin_ajax();
+	$this->process_queue();
+	wp_send_json_success( [ 'remaining' => count( get_option( self::OPTION_QUEUE, [] ) ) ] );
+}
+
+public function ajax_clear_queue() {
+	$this->check_admin_ajax();
+	update_option( self::OPTION_QUEUE, [], false );
+	wp_send_json_success();
+}
+
+public function ajax_delete_item() {
+	$this->check_admin_ajax();
+	$index = isset($_POST['index']) ? (int) $_POST['index'] : -1;
+	$q = get_option( self::OPTION_QUEUE, [] );
+	if ( $index >= 0 && isset( $q[$index] ) ) {
+		array_splice( $q, $index, 1 );
+		update_option( self::OPTION_QUEUE, $q, false );
+		wp_send_json_success();
+	}
+	wp_send_json_error( 'not_found', 404 );
+}
+
+public function ajax_retry_item() {
+	$this->check_admin_ajax();
+	$index = isset($_POST['index']) ? (int) $_POST['index'] : -1;
+	$q = get_option( self::OPTION_QUEUE, [] );
+	if ( $index >= 0 && isset( $q[$index] ) ) {
+		$q[$index]['attempts'] = 0;
+		unset( $q[$index]['next_at'] );
+		update_option( self::OPTION_QUEUE, $q, false );
+		wp_send_json_success();
+	}
+	wp_send_json_error( 'not_found', 404 );
+}
+
+public function ajax_export_queue() {
+	$this->check_admin_ajax();
+	$q = get_option( self::OPTION_QUEUE, [] );
+	wp_send_json_success( [ 'json' => $q ] );
+}
+
+public function ajax_test_connection() {
+	$this->check_admin_ajax();
+	$s = $this->get_settings();
+	if ( empty( $s['endpoint'] ) || empty( $s['secret'] ) ) {
+		wp_send_json_error( 'not_configured', 400 );
+	}
+	$sample   = $this->build_envelope( 'ld.ping', [ 'user' => [ 'id' => get_current_user_id() ] ] );
+	$body     = wp_json_encode( $sample, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+	$ts       = (string) time();
+	$sig      = 'v1=' . hash_hmac( 'sha256', $ts . "\n" . $body, $s['secret'] );
+	$response = wp_remote_post( $s['endpoint'], [
+		'headers' => [
+			'Content-Type' => 'application/json',
+			'X-Signature'  => $sig,
+			'X-Timestamp'  => $ts,
+			'X-Plugin'     => 'ld-bg-sync/' . self::VERSION,
+		],
+		'body'      => $body,
+		'timeout'   => (int) $s['timeout'],
+		'sslverify' => (bool) $s['sslverify'],
+	] );
+	if ( is_wp_error( $response ) ) {
+		wp_send_json_error( [ 'message' => $response->get_error_message() ], 500 );
+	}
+	wp_send_json_success( [
+		'code' => wp_remote_retrieve_response_code( $response ),
+		'body' => wp_remote_retrieve_body( $response ),
+	] );
+}
+
+public function ajax_rotate_secret() {
+	$this->check_admin_ajax();
+	$s = $this->get_settings();
+	$s['secret'] = wp_generate_password( 48, true, true );
+	update_option( self::OPTION_SETTINGS, $s, false );
+	wp_send_json_success( [ 'secret' => $s['secret'] ] );
+}
+
+public function ajax_enqueue_payload() {
+	$this->check_admin_ajax();
+	$json = wp_unslash( $_POST['payload'] ?? '' );
+	$arr  = json_decode( $json, true );
+	if ( ! is_array( $arr ) ) {
+		wp_send_json_error( 'invalid_json', 400 );
+	}
+	$this->queue_push( [ 'payload' => $arr ] );
+	wp_send_json_success();
+}
+
+public function ajax_schedule_cron() {
+	$this->check_admin_ajax();
+	wp_clear_scheduled_hook( self::CRON_HOOK );
+	wp_schedule_event( time() + 60, 'every_five_minutes', self::CRON_HOOK );
+	wp_send_json_success( [ 'next' => wp_next_scheduled( self::CRON_HOOK ) ] );
+}
+	
 	private function __construct() {
 		// Defaults on first run
 		add_action( 'plugins_loaded', [ $this, 'maybe_set_defaults' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_assets' ] );
+		add_action( 'wp_ajax_ldbg_process_now', [ $this, 'ajax_process_now' ] );
+		add_action( 'wp_ajax_ldbg_clear_queue', [ $this, 'ajax_clear_queue' ] );
+		add_action( 'wp_ajax_ldbg_delete_item', [ $this, 'ajax_delete_item' ] );
+		add_action( 'wp_ajax_ldbg_retry_item',  [ $this, 'ajax_retry_item' ] );
+		add_action( 'wp_ajax_ldbg_export_queue',[ $this, 'ajax_export_queue' ] );
+		add_action( 'wp_ajax_ldbg_test_connection', [ $this, 'ajax_test_connection' ] );
+		add_action( 'wp_ajax_ldbg_rotate_secret', [ $this, 'ajax_rotate_secret' ] );
+		add_action( 'wp_ajax_ldbg_enqueue_payload', [ $this, 'ajax_enqueue_payload' ] );
+		add_action( 'wp_ajax_ldbg_schedule_cron', [ $this, 'ajax_schedule_cron' ] );
 
+		
 		public function admin_assets( $hook ) {
 		if ( $hook !== 'settings_page_ld-bg-sync' ) { return; }
 		wp_enqueue_style( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.css', [], self::VERSION );
@@ -157,19 +271,139 @@ class LD_Background_Sync {
 		return wp_parse_args( get_option( self::OPTION_SETTINGS, [] ), $defaults );
 	}
 
-	public function render_settings_page() {
-		?>
-		<div class="wrap">
-			<h1>LearnDash Background Sync</h1>
-			<form method="post" action="options.php">
+public function render_settings_page() {
+	$opts   = $this->get_settings();
+	$queue  = get_option( self::OPTION_QUEUE, [] );
+	$next   = wp_next_scheduled( self::CRON_HOOK );
+	?>
+	<div class="wrap ldbg-wrap">
+		<h1>LearnDash Background Sync</h1>
+		<p class="description">Send LearnDash events in the background to your secure endpoint.</p>
+
+		<div class="ldbg-tabs">
+			<a class="ldbg-tab active" data-tab="connection">Connection</a>
+			<a class="ldbg-tab" data-tab="queue">Queue</a>
+			<a class="ldbg-tab" data-tab="diagnostics">Diagnostics</a>
+			<a class="ldbg-tab" data-tab="tools">Tools</a>
+		</div>
+
+		<!-- Connection -->
+		<div class="ldbg-panel" data-panel="connection" style="display:block">
+			<form method="post" action="options.php" class="ldbg-card">
 				<?php settings_fields( 'ld_bg_sync' ); ?>
 				<?php do_settings_sections( 'ld-bg-sync' ); ?>
-				<?php submit_button(); ?>
+				<?php submit_button( __( 'Save Settings', 'ld-bg-sync' ) ); ?>
+				<p><em>No changes are displayed to users; everything happens in the background..</em></p>
 			</form>
-			<p><em>No changes are visible to learners. All events are queued and sent in the background.</em></p>
+			<?php if ( empty( $opts['endpoint'] ) || empty( $opts['secret'] ) ) : ?>
+				<div class="notice notice-warning"><p>To get started, set the Endpoint and Secret above.</p></div>
+			<?php endif; ?>
 		</div>
-		<?php
-	}
+
+		<!-- Queue -->
+		<div class="ldbg-panel" data-panel="queue">
+			<div class="ldbg-card">
+				<div class="ldbg-row">
+					<button class="button button-secondary" id="ldbg-process-now">Process Now</button>
+					<button class="button" id="ldbg-clear-queue">Clear Queue</button>
+					<button class="button" id="ldbg-export-queue">Export JSON</button>
+					<span class="ldbg-flex-grow"></span>
+					<span>Items: <strong><?php echo count( (array) $queue ); ?></strong></span>
+				</div>
+				<table class="widefat striped ldbg-table">
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Type</th>
+							<th>User</th>
+							<th>Attempts</th>
+							<th>Created</th>
+							<th>Next Retry</th>
+							<th style="width:140px;">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php if ( ! empty( $queue ) ) :
+							foreach ( $queue as $i => $item ) :
+								$p   = $item['payload'] ?? [];
+								$u   = $p['data']['user'] ?? $p['user'] ?? [];
+								?>
+								<tr data-index="<?php echo esc_attr( $i ); ?>">
+									<td><code><?php echo esc_html( $item['id'] ?? '-' ); ?></code></td>
+									<td><?php echo esc_html( $p['type'] ?? '-' ); ?></td>
+									<td><?php echo esc_html( $u['email'] ?? $u['login'] ?? $u['id'] ?? '-' ); ?></td>
+									<td><?php echo (int) ( $item['attempts'] ?? 0 ); ?></td>
+									<td><?php echo ! empty( $item['created_at'] ) ? esc_html( date_i18n( 'Y-m-d H:i', $item['created_at'] ) ) : '-'; ?></td>
+									<td><?php
+										echo ! empty( $item['next_at'] )
+											? esc_html( date_i18n( 'Y-m-d H:i', $item['next_at'] ) )
+											: '-';
+									?></td>
+									<td>
+										<button class="button ldbg-retry-item">Retry</button>
+										<button class="button link-delete ldbg-delete-item">Delete</button>
+										<button class="button ldbg-view-json">View</button>
+									</td>
+								</tr>
+							<?php endforeach;
+						else: ?>
+							<tr><td colspan="7">No Queue</td></tr>
+						<?php endif; ?>
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- Diagnostics -->
+		<div class="ldbg-panel" data-panel="diagnostics">
+			<div class="ldbg-grid">
+				<div class="ldbg-card">
+					<h2>WP-Cron</h2>
+					<ul>
+						<li>Hook: <code><?php echo esc_html( self::CRON_HOOK ); ?></code></li>
+						<li>Next Run:
+							<strong>
+								<?php echo $next ? esc_html( date_i18n( 'Y-m-d H:i:s', $next ) ) : '— not scheduled —'; ?>
+							</strong>
+						</li>
+					</ul>
+					<button class="button" id="ldbg-schedule-cron">Schedule/Reschedule</button>
+				</div>
+				<div class="ldbg-card">
+					<h2>Versions</h2>
+					<ul>
+						<li>Plugin: <code><?php echo esc_html( self::VERSION ); ?></code></li>
+						<li>WordPress: <code><?php echo esc_html( get_bloginfo('version') ); ?></code></li>
+						<li>PHP: <code><?php echo esc_html( PHP_VERSION ); ?></code></li>
+					</ul>
+				</div>
+				<div class="ldbg-card">
+					<h2>Remote Test</h2>
+					<p>A sample request is sent to the Endpoint with Sign (no data changes).</p>
+					<button class="button button-primary" id="ldbg-test-connection">Test Connection</button>
+					<pre class="ldbg-pre" id="ldbg-test-output"></pre>
+				</div>
+			</div>
+		</div>
+
+		<!-- Tools -->
+		<div class="ldbg-panel" data-panel="tools">
+			<div class="ldbg-card">
+				<h2>Rotate Secret</h2>
+				<p>A new secure Secret will be generated and replaced. (Update the destination frontend/backend as well)</p>
+				<button class="button" id="ldbg-rotate-secret">Rotate</button>
+				<code id="ldbg-rotate-output"></code>
+			</div>
+			<div class="ldbg-card">
+				<h2>Manual Enqueue (Dev)</h2>
+				<p>write manual Payload.</p>
+				<textarea id="ldbg-enqueue-json" class="large-text code" rows="6">{ "type":"ld.activity","data":{"user":{"id":1}} }</textarea>
+				<button class="button" id="ldbg-enqueue-payload">Enqueue</button>
+			</div>
+		</div>
+	</div>
+	<?php
+}
 
 	public function field_endpoint() {
 		$opts = $this->get_settings();
@@ -211,58 +445,53 @@ class LD_Background_Sync {
 		update_option( self::OPTION_QUEUE, $queue, false );
 	}
 
-	public function process_queue() {
-		$settings = $this->get_settings();
-		$endpoint = $settings['endpoint'];
-		$secret   = $settings['secret'];
-		if ( empty( $endpoint ) || empty( $secret ) ) {
-			return; // Not configured
+public function process_queue() {
+	$settings = $this->get_settings();
+	$endpoint = $settings['endpoint'];
+	$secret   = $settings['secret'];
+	if ( empty( $endpoint ) || empty( $secret ) ) { return; }
+
+	$queue = get_option( self::OPTION_QUEUE, [] );
+	if ( empty( $queue ) || ! is_array( $queue ) ) { return; }
+
+	$now     = time();
+	$remain  = [];
+	foreach ( $queue as $item ) {
+		if ( ! empty( $item['next_at'] ) && $item['next_at'] > $now ) {
+			$remain[] = $item;
+			continue;
 		}
 
-		$queue = get_option( self::OPTION_QUEUE, [] );
-		if ( empty( $queue ) || ! is_array( $queue ) ) {
-			return;
-		}
+		$body      = wp_json_encode( $item['payload'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		$timestamp = (string) $now;
+		$signature = hash_hmac( 'sha256', $timestamp . "\n" . $body, $secret );
 
-		$updated = [];
-		foreach ( $queue as $item ) {
-			$body       = wp_json_encode( $item['payload'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-			$timestamp  = (string) time();
-			$signature  = hash_hmac( 'sha256', $timestamp . "\n" . $body, $secret );
+		$args = [
+			'headers'   => [
+				'Content-Type' => 'application/json',
+				'X-Signature'  => 'v1=' . $signature,
+				'X-Timestamp'  => $timestamp,
+				'X-Plugin'     => 'ld-bg-sync/' . self::VERSION,
+			],
+			'body'      => $body,
+			'timeout'   => (int) $settings['timeout'],
+			'sslverify' => (bool) $settings['sslverify'],
+		];
 
-			$args = [
-				'headers' => [
-					'Content-Type' => 'application/json',
-					'X-Signature'  => 'v1=' . $signature,
-					'X-Timestamp'  => $timestamp,
-					'X-Plugin'     => 'ld-bg-sync/' . self::VERSION,
-				],
-				'body'      => $body,
-				'timeout'   => (int) $settings['timeout'],
-				'sslverify' => (bool) $settings['sslverify'],
-				// Non-blocking is nice, but we process synchronously for retries; keep blocking request
-			];
+		$response = wp_remote_post( $endpoint, $args );
+		$code     = wp_remote_retrieve_response_code( $response );
 
-			$response = wp_remote_post( $endpoint, $args );
-			$code     = wp_remote_retrieve_response_code( $response );
-
-			if ( is_wp_error( $response ) || $code < 200 || $code >= 300 ) {
-				$item['attempts'] = (int) $item['attempts'] + 1;
-				$item['next_at']  = time() + $this->backoff_seconds( $item['attempts'] );
-				$updated[]        = $item; // Keep for retry
-			} else {
-				// Delivered — drop
+		if ( is_wp_error( $response ) || $code < 200 || $code >= 300 ) {
+			$item['attempts'] = (int) ( $item['attempts'] ?? 0 ) + 1;
+			$item['next_at']  = $now + $this->backoff_seconds( $item['attempts'] );
+			if ( $item['attempts'] < (int) $settings['max_retries'] ) {
+				$remain[] = $item;
 			}
 		}
-
-		// Keep only items due for retry in the future
-		$retry_queue = array_values( array_filter( $updated, function( $i ) use ( $settings ) {
-			return $i['attempts'] < (int) $settings['max_retries'];
-		} ) );
-
-		$this->queue_replace( $retry_queue );
 	}
-
+	$this->queue_replace( $remain );
+}
+	
 	private function backoff_seconds( $attempt ) {
 		// Exponential backoff with jitter, max 1 hour
 		$base = min( 3600, pow( 2, min( 10, (int) $attempt ) ) );
