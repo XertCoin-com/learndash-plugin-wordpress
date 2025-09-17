@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LearnDash Background Sync (to External Endpoint)
  * Description: Background-sends LearnDash user events (including points) to your secure endpoint—no UI shown to learners.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Pexelle
  * Requires PHP: 7.4
  * Requires at least: 6.0
@@ -132,6 +132,17 @@ public function ajax_schedule_cron() {
 	wp_send_json_success( [ 'next' => wp_next_scheduled( self::CRON_HOOK ) ] );
 }
 	
+
+	public function admin_assets( $hook ) {
+	if ( $hook !== 'settings_page_ld-bg-sync' ) { return; }
+	wp_enqueue_style( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.css', [], self::VERSION );
+	wp_enqueue_script( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.js', [ 'jquery' ], self::VERSION, true );
+	wp_localize_script( 'ldbg-admin', 'LDBG', [
+		'ajax'   => admin_url( 'admin-ajax.php' ),
+		'nonce'  => wp_create_nonce( 'ldbg_admin' ),
+			] );
+		}
+	
 	private function __construct() {
 		// Defaults on first run
 		add_action( 'plugins_loaded', [ $this, 'maybe_set_defaults' ] );
@@ -146,16 +157,6 @@ public function ajax_schedule_cron() {
 		add_action( 'wp_ajax_ldbg_enqueue_payload', [ $this, 'ajax_enqueue_payload' ] );
 		add_action( 'wp_ajax_ldbg_schedule_cron', [ $this, 'ajax_schedule_cron' ] );
 
-		
-		public function admin_assets( $hook ) {
-		if ( $hook !== 'settings_page_ld-bg-sync' ) { return; }
-		wp_enqueue_style( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.css', [], self::VERSION );
-		wp_enqueue_script( 'ldbg-admin', plugin_dir_url(__FILE__) . 'assets/ldbg-admin.js', [ 'jquery' ], self::VERSION, true );
-		wp_localize_script( 'ldbg-admin', 'LDBG', [
-			'ajax'   => admin_url( 'admin-ajax.php' ),
-			'nonce'  => wp_create_nonce( 'ldbg_admin' ),
-				] );
-			}
 		
 		// Admin settings
 		if ( is_admin() ) {
@@ -276,133 +277,139 @@ public function render_settings_page() {
 	$queue  = get_option( self::OPTION_QUEUE, [] );
 	$next   = wp_next_scheduled( self::CRON_HOOK );
 	?>
-	<div class="wrap ldbg-wrap">
-		<h1>LearnDash Background Sync</h1>
-		<p class="description">Send LearnDash events in the background to your secure endpoint.</p>
+<div class="wrap ldbg-wrap">
+    <h1>LearnDash Background Sync</h1>
+    <p class="description">Send LearnDash events in the background to your secure endpoint.</p>
 
-		<div class="ldbg-tabs">
-			<a class="ldbg-tab active" data-tab="connection">Connection</a>
-			<a class="ldbg-tab" data-tab="queue">Queue</a>
-			<a class="ldbg-tab" data-tab="diagnostics">Diagnostics</a>
-			<a class="ldbg-tab" data-tab="tools">Tools</a>
-		</div>
+    <div class="ldbg-tabs">
+        <a class="ldbg-tab active" data-tab="connection">Connection</a>
+        <a class="ldbg-tab" data-tab="queue">Queue</a>
+        <a class="ldbg-tab" data-tab="diagnostics">Diagnostics</a>
+        <a class="ldbg-tab" data-tab="tools">Tools</a>
+    </div>
 
-		<!-- Connection -->
-		<div class="ldbg-panel" data-panel="connection" style="display:block">
-			<form method="post" action="options.php" class="ldbg-card">
-				<?php settings_fields( 'ld_bg_sync' ); ?>
-				<?php do_settings_sections( 'ld-bg-sync' ); ?>
-				<?php submit_button( __( 'Save Settings', 'ld-bg-sync' ) ); ?>
-				<p><em>No changes are displayed to users; everything happens in the background..</em></p>
-			</form>
-			<?php if ( empty( $opts['endpoint'] ) || empty( $opts['secret'] ) ) : ?>
-				<div class="notice notice-warning"><p>To get started, set the Endpoint and Secret above.</p></div>
-			<?php endif; ?>
-		</div>
+    <!-- Connection -->
+    <div class="ldbg-panel" data-panel="connection" style="display:block">
+        <form method="post" action="options.php" class="ldbg-card">
+            <?php settings_fields( 'ld_bg_sync' ); ?>
+            <?php do_settings_sections( 'ld-bg-sync' ); ?>
+            <?php submit_button( __( 'Save Settings', 'ld-bg-sync' ) ); ?>
+            <p><em>No changes are displayed to users; everything happens in the background..</em></p>
+        </form>
+        <?php if ( empty( $opts['endpoint'] ) || empty( $opts['secret'] ) ) : ?>
+        <div class="notice notice-warning">
+            <p>To get started, set the Endpoint and Secret above.</p>
+        </div>
+        <?php endif; ?>
+    </div>
 
-		<!-- Queue -->
-		<div class="ldbg-panel" data-panel="queue">
-			<div class="ldbg-card">
-				<div class="ldbg-row">
-					<button class="button button-secondary" id="ldbg-process-now">Process Now</button>
-					<button class="button" id="ldbg-clear-queue">Clear Queue</button>
-					<button class="button" id="ldbg-export-queue">Export JSON</button>
-					<span class="ldbg-flex-grow"></span>
-					<span>Items: <strong><?php echo count( (array) $queue ); ?></strong></span>
-				</div>
-				<table class="widefat striped ldbg-table">
-					<thead>
-						<tr>
-							<th>ID</th>
-							<th>Type</th>
-							<th>User</th>
-							<th>Attempts</th>
-							<th>Created</th>
-							<th>Next Retry</th>
-							<th style="width:140px;">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php if ( ! empty( $queue ) ) :
+    <!-- Queue -->
+    <div class="ldbg-panel" data-panel="queue">
+        <div class="ldbg-card">
+            <div class="ldbg-row">
+                <button class="button button-secondary" id="ldbg-process-now">Process Now</button>
+                <button class="button" id="ldbg-clear-queue">Clear Queue</button>
+                <button class="button" id="ldbg-export-queue">Export JSON</button>
+                <span class="ldbg-flex-grow"></span>
+                <span>Items: <strong><?php echo count( (array) $queue ); ?></strong></span>
+            </div>
+            <table class="widefat striped ldbg-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>User</th>
+                        <th>Attempts</th>
+                        <th>Created</th>
+                        <th>Next Retry</th>
+                        <th style="width:140px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ( ! empty( $queue ) ) :
 							foreach ( $queue as $i => $item ) :
 								$p   = $item['payload'] ?? [];
 								$u   = $p['data']['user'] ?? $p['user'] ?? [];
 								?>
-								<tr data-index="<?php echo esc_attr( $i ); ?>">
-									<td><code><?php echo esc_html( $item['id'] ?? '-' ); ?></code></td>
-									<td><?php echo esc_html( $p['type'] ?? '-' ); ?></td>
-									<td><?php echo esc_html( $u['email'] ?? $u['login'] ?? $u['id'] ?? '-' ); ?></td>
-									<td><?php echo (int) ( $item['attempts'] ?? 0 ); ?></td>
-									<td><?php echo ! empty( $item['created_at'] ) ? esc_html( date_i18n( 'Y-m-d H:i', $item['created_at'] ) ) : '-'; ?></td>
-									<td><?php
+                    <tr data-index="<?php echo esc_attr( $i ); ?>">
+                        <td><code><?php echo esc_html( $item['id'] ?? '-' ); ?></code></td>
+                        <td><?php echo esc_html( $p['type'] ?? '-' ); ?></td>
+                        <td><?php echo esc_html( $u['email'] ?? $u['login'] ?? $u['id'] ?? '-' ); ?></td>
+                        <td><?php echo (int) ( $item['attempts'] ?? 0 ); ?></td>
+                        <td><?php echo ! empty( $item['created_at'] ) ? esc_html( date_i18n( 'Y-m-d H:i', $item['created_at'] ) ) : '-'; ?>
+                        </td>
+                        <td><?php
 										echo ! empty( $item['next_at'] )
 											? esc_html( date_i18n( 'Y-m-d H:i', $item['next_at'] ) )
 											: '-';
 									?></td>
-									<td>
-										<button class="button ldbg-retry-item">Retry</button>
-										<button class="button link-delete ldbg-delete-item">Delete</button>
-										<button class="button ldbg-view-json">View</button>
-									</td>
-								</tr>
-							<?php endforeach;
+                        <td>
+                            <button class="button ldbg-retry-item">Retry</button>
+                            <button class="button link-delete ldbg-delete-item">Delete</button>
+                            <button class="button ldbg-view-json">View</button>
+                        </td>
+                    </tr>
+                    <?php endforeach;
 						else: ?>
-							<tr><td colspan="7">No Queue</td></tr>
-						<?php endif; ?>
-					</tbody>
-				</table>
-			</div>
-		</div>
+                    <tr>
+                        <td colspan="7">No Queue</td>
+                    </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-		<!-- Diagnostics -->
-		<div class="ldbg-panel" data-panel="diagnostics">
-			<div class="ldbg-grid">
-				<div class="ldbg-card">
-					<h2>WP-Cron</h2>
-					<ul>
-						<li>Hook: <code><?php echo esc_html( self::CRON_HOOK ); ?></code></li>
-						<li>Next Run:
-							<strong>
-								<?php echo $next ? esc_html( date_i18n( 'Y-m-d H:i:s', $next ) ) : '— not scheduled —'; ?>
-							</strong>
-						</li>
-					</ul>
-					<button class="button" id="ldbg-schedule-cron">Schedule/Reschedule</button>
-				</div>
-				<div class="ldbg-card">
-					<h2>Versions</h2>
-					<ul>
-						<li>Plugin: <code><?php echo esc_html( self::VERSION ); ?></code></li>
-						<li>WordPress: <code><?php echo esc_html( get_bloginfo('version') ); ?></code></li>
-						<li>PHP: <code><?php echo esc_html( PHP_VERSION ); ?></code></li>
-					</ul>
-				</div>
-				<div class="ldbg-card">
-					<h2>Remote Test</h2>
-					<p>A sample request is sent to the Endpoint with Sign (no data changes).</p>
-					<button class="button button-primary" id="ldbg-test-connection">Test Connection</button>
-					<pre class="ldbg-pre" id="ldbg-test-output"></pre>
-				</div>
-			</div>
-		</div>
+    <!-- Diagnostics -->
+    <div class="ldbg-panel" data-panel="diagnostics">
+        <div class="ldbg-grid">
+            <div class="ldbg-card">
+                <h2>WP-Cron</h2>
+                <ul>
+                    <li>Hook: <code><?php echo esc_html( self::CRON_HOOK ); ?></code></li>
+                    <li>Next Run:
+                        <strong>
+                            <?php echo $next ? esc_html( date_i18n( 'Y-m-d H:i:s', $next ) ) : '— not scheduled —'; ?>
+                        </strong>
+                    </li>
+                </ul>
+                <button class="button" id="ldbg-schedule-cron">Schedule/Reschedule</button>
+            </div>
+            <div class="ldbg-card">
+                <h2>Versions</h2>
+                <ul>
+                    <li>Plugin: <code><?php echo esc_html( self::VERSION ); ?></code></li>
+                    <li>WordPress: <code><?php echo esc_html( get_bloginfo('version') ); ?></code></li>
+                    <li>PHP: <code><?php echo esc_html( PHP_VERSION ); ?></code></li>
+                </ul>
+            </div>
+            <div class="ldbg-card">
+                <h2>Remote Test</h2>
+                <p>A sample request is sent to the Endpoint with Sign (no data changes).</p>
+                <button class="button button-primary" id="ldbg-test-connection">Test Connection</button>
+                <pre class="ldbg-pre" id="ldbg-test-output"></pre>
+            </div>
+        </div>
+    </div>
 
-		<!-- Tools -->
-		<div class="ldbg-panel" data-panel="tools">
-			<div class="ldbg-card">
-				<h2>Rotate Secret</h2>
-				<p>A new secure Secret will be generated and replaced. (Update the destination frontend/backend as well)</p>
-				<button class="button" id="ldbg-rotate-secret">Rotate</button>
-				<code id="ldbg-rotate-output"></code>
-			</div>
-			<div class="ldbg-card">
-				<h2>Manual Enqueue (Dev)</h2>
-				<p>write manual Payload.</p>
-				<textarea id="ldbg-enqueue-json" class="large-text code" rows="6">{ "type":"ld.activity","data":{"user":{"id":1}} }</textarea>
-				<button class="button" id="ldbg-enqueue-payload">Enqueue</button>
-			</div>
-		</div>
-	</div>
-	<?php
+    <!-- Tools -->
+    <div class="ldbg-panel" data-panel="tools">
+        <div class="ldbg-card">
+            <h2>Rotate Secret</h2>
+            <p>A new secure Secret will be generated and replaced. (Update the destination frontend/backend as well)</p>
+            <button class="button" id="ldbg-rotate-secret">Rotate</button>
+            <code id="ldbg-rotate-output"></code>
+        </div>
+        <div class="ldbg-card">
+            <h2>Manual Enqueue (Dev)</h2>
+            <p>write manual Payload.</p>
+            <textarea id="ldbg-enqueue-json" class="large-text code"
+                rows="6">{ "type":"ld.activity","data":{"user":{"id":1}} }</textarea>
+            <button class="button" id="ldbg-enqueue-payload">Enqueue</button>
+        </div>
+    </div>
+</div>
+<?php
 }
 
 	public function field_endpoint() {
