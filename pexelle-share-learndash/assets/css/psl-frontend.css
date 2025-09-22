@@ -10,5 +10,24 @@
 .psl-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;border:1px solid #1a7;cursor:pointer;text-decoration:none}
 .psl-btn:hover{background:#f4fffb}
 .psl-btn--ghost{background:#fff}
-.psl-share-btn{margin-left:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #1a7;border-radius:8px;background:#fff;color:#0a5;cursor:pointer;font-size:12px;line-height:1}
-.psl-share-btn:hover{background:#f4fffb}
+.psl-share-btn {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #fff;
+  border-radius: 8px;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  transition: all 0.25s ease;
+}
+
+.psl-share-btn:hover {
+  background: #fff;
+  color: #000;
+}
