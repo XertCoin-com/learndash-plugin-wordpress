@@ -104,6 +104,3 @@ class LD_Pexelle_Button {
     }
 }
 new LD_Pexelle_Button();
-
-/* ---------- JS file (pexelle-btn.js) ---------- */
-// این فایل را در همان پوشه‌ی افزونه کنار ld-pexelle-button.php بسازید.
