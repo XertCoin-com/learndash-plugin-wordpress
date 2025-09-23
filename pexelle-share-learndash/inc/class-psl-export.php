@@ -10,10 +10,9 @@ final class Psl_Export {
     public static function register_rest() {
         register_rest_route('psl/v1', '/cert-json', [
             'methods'  => 'GET',
-            // 'permission_callback' => function() {
-            //     return is_user_logged_in();
-            // },
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                return is_user_logged_in();
+            },
             'callback' => [__CLASS__, 'handle_cert_json'],
             'args' => [
                 'course_id' => [
