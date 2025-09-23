@@ -36,6 +36,8 @@ final class Psl_Frontend {
             'helpInstall' => Psl_Plugin::get_option('help_install_url', ''),
             'helpHow'     => Psl_Plugin::get_option('help_how_url', ''),
             'certSelector'=> '.ld-certificate-link',
+            'ajax_url'    => admin_url('admin-ajax.php'),
+            'site_url'    => home_url('/'),
         ];
         wp_localize_script('psl-frontend', 'PSL_SETTINGS', $data);
         wp_enqueue_script('psl-frontend');
