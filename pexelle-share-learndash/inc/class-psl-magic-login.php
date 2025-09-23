@@ -125,29 +125,48 @@ poll();
         ]);
     }
 
-    public static function ajax_create_request() {
-        if (!is_user_logged_in()) wp_send_json_error('not_logged_in');
-        $user_id = get_current_user_id();
+public static function ajax_create_request() {
+    if (!is_user_logged_in()) wp_send_json_error('not_logged_in');
+    $user_id = get_current_user_id();
 
-        $cert_url = isset($_POST['cert_url']) ? esc_url_raw($_POST['cert_url']) : '';
-        if (!$cert_url) wp_send_json_error('missing_cert_url');
+    $cert_url = isset($_POST['cert_url']) ? esc_url_raw($_POST['cert_url']) : '';
+    if (!$cert_url) wp_send_json_error('missing_cert_url');
 
-        $id = self::create_request($user_id, $cert_url);
-
-        $qr_url = home_url('/psl/magic/' . rawurlencode($id));
-        $nonce  = wp_create_nonce('psl_magic_approve_' . $id);
-        $approve_url = add_query_arg([
-            'psl_magic_approve' => $id,
-            'psl_magic_nonce'   => $nonce,
-        ], home_url('/'));
-
-        wp_send_json_success([
-            'id'          => $id,
-            'qr_url'      => $qr_url,
-            'approve_url' => $approve_url,
-            'expires_in'  => self::REQ_TTL,
-        ]);
+    $course_id = 0;
+    $parts = wp_parse_url($cert_url);
+    if (!empty($parts['query'])) {
+        parse_str($parts['query'], $q);
+        if (!empty($q['course_id'])) {
+            $course_id = (int) $q['course_id'];
+        }
     }
+
+    $id = wp_generate_password(20, false, false);
+    $rec = [
+        'user_id'   => $user_id,
+        'created'   => time(),
+        'expires'   => time() + self::REQ_TTL,
+        'approved'  => false,
+        'consumed'  => false,
+        'redirect'  => esc_url_raw($cert_url), 
+        'course_id' => $course_id,        
+    ];
+    set_transient(self::tk($id), $rec, self::REQ_TTL);
+
+    $qr_url = home_url('/psl/magic/' . rawurlencode($id));
+    $nonce  = wp_create_nonce('psl_magic_approve_' . $id);
+    $approve_url = add_query_arg([
+        'psl_magic_approve' => $id,
+        'psl_magic_nonce'   => $nonce,
+    ], home_url('/'));
+
+    wp_send_json_success([
+        'id'          => $id,
+        'qr_url'      => $qr_url,
+        'approve_url' => $approve_url,
+        'expires_in'  => self::REQ_TTL,
+    ]);
+}
 
     public static function maybe_handle_approve_link() {
         $id = get_query_var('psl_magic_approve') ?: ($_GET['psl_magic_approve'] ?? '');
