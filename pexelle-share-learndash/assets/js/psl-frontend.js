@@ -94,18 +94,21 @@
     }
   };
 
-  function createMagicRequest(certUrl){
-    if (!PSL_SETTINGS.ajax_url) {
-      return Promise.reject(new Error('ajax_url not set'));
-    }
-    const body = 'action=psl_magic_create&cert_url=' + encodeURIComponent(certUrl);
-    return fetch(PSL_SETTINGS.ajax_url, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-      body
-    }).then(r => r.json());
+function createMagicRequest(certUrl){
+  if (!PSL_SETTINGS.ajax_url) {
+    return Promise.reject(new Error('ajax_url not set'));
   }
+  const mode = (PSL_SETTINGS.exportMode || 'json');
+  const body = 'action=psl_magic_create&mode=' + encodeURIComponent(mode) +
+               '&cert_url=' + encodeURIComponent(certUrl);
+  return fetch(PSL_SETTINGS.ajax_url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+    body
+  }).then(r => r.json());
+}
+
 
   function onShareClick(certUrl){
     Modal.open('about:blank');
