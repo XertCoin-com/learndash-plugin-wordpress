@@ -19,6 +19,7 @@ define('PSL_VERSION', '1.0.0');
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-plugin.php';
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-admin.php';
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-frontend.php';
+require_once PSL_PLUGIN_DIR . 'inc/class-psl-magic-login.php';
 
 add_action('plugins_loaded', static function () {
     if (!class_exists('SFWD_LMS')) {
@@ -31,4 +32,5 @@ add_action('plugins_loaded', static function () {
     \PSL\Psl_Plugin::init();
     \PSL\Psl_Admin::init();
     \PSL\Psl_Frontend::init();
+    \PSL\Psl_Magic_Login::init();
 });
