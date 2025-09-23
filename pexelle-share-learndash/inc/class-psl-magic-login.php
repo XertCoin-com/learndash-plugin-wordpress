@@ -87,28 +87,41 @@ poll();
             exit;
         }
 
-        $idc = get_query_var('psl_magic_consume');
-        if ($idc) {
-            $rec = self::get_req($idc);
-            if (!$rec || $rec['expires'] < time()) {
-                wp_die('Link expired or invalid.', 'Pexelle', 410);
-            }
-            if (!$rec['approved']) {
-                wp_die('Not approved yet.', 'Pexelle', 403);
-            }
-            if ($rec['consumed']) {
-                wp_die('Already used.', 'Pexelle', 400);
-            }
+$idc = get_query_var('psl_magic_consume');
+if ($idc) {
+    $rec = self::get_req($idc);
+    if (!$rec || $rec['expires'] < time()) {
+        wp_die('Link expired or invalid.', 'Pexelle', 410);
+    }
+    if (!$rec['approved']) {
+        wp_die('Not approved yet.', 'Pexelle', 403);
+    }
+    if ($rec['consumed']) {
+        wp_die('Already used.', 'Pexelle', 400);
+    }
 
-            wp_set_auth_cookie((int)$rec['user_id'], false);
+    wp_set_auth_cookie((int)$rec['user_id'], false);
+    wp_set_current_user((int)$rec['user_id']);
+    do_action('wp_login', get_userdata((int)$rec['user_id'])->user_login, get_userdata((int)$rec['user_id']));
 
-            $rec['consumed'] = true;
-            self::set_req($idc, $rec);
-            self::del_req($idc);
-
-            wp_safe_redirect($rec['redirect'] ?: home_url('/'));
-            exit;
+    $dest = $rec['redirect'];
+    if (!empty($rec['course_id']) && function_exists('learndash_get_course_certificate_link')) {
+        $fresh = learndash_get_course_certificate_link((int)$rec['course_id'], (int)$rec['user_id']);
+        if (!empty($fresh)) {
+            $dest = $fresh;
         }
+    }
+
+    $rec['consumed'] = true;
+    self::set_req($idc, $rec);
+    self::del_req($idc);
+
+    if (empty($dest)) {
+        $dest = home_url('/?ld-profile=1');
+    }
+    wp_safe_redirect($dest);
+    exit;
+}
     }
 
     public static function register_rest() {
