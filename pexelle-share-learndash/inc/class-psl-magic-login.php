@@ -57,6 +57,7 @@ final class Psl_Magic_Login {
 
     /** Register query vars (include bridge vars) */
     public static function register_qv($vars){
+		$vars[] = 'psl_token';
         $vars[] = 'psl_magic';
         $vars[] = 'psl_magic_consume';
         $vars[] = 'psl_magic_approve';
@@ -136,13 +137,22 @@ poll();
             $fallback_b64 = $fallback ? rtrim(strtr(base64_encode($fallback), '+/=', '-_,'), ',') : '';
             $mode = !empty($rec['mode']) ? sanitize_text_field($rec['mode']) : 'pdf';
 
+			$token = wp_generate_password(32, false, false);
+			set_transient('psl_json_token_' . $token, [
+				'user_id'   => $uid,
+				'course_id' => (int) $course_id,
+				'created'   => time(),
+			], 10 * MINUTE_IN_SECONDS);
+
+
             // build Bridge URL (same-domain), pass only compact safe params
             $bridge = add_query_arg(array_filter([
-                'psl_after_login' => 1,
-                'course_id'       => $course_id ?: null,
-                'mode'            => $mode ?: null,
-                'goto_b64'        => $fallback_b64 ?: null,
-            ]), home_url('/'));
+				'psl_after_login' => 1,
+				'course_id'       => $course_id ?: null,
+				'mode'            => $mode ?: null,
+				'goto_b64'        => $fallback_b64 ?: null,
+				'psl_token'       => $token,
+			]), home_url('/'));
 
             status_header(200);
             nocache_headers();
@@ -164,17 +174,28 @@ poll();
                 exit;
             }
 
-            $uid       = get_current_user_id();
-            $mode      = isset($_GET['mode']) ? sanitize_text_field((string)$_GET['mode']) : 'pdf';
-            $course_id = isset($_GET['course_id']) ? (int) $_GET['course_id'] : 0;
-            $dest      = '';
+            $token     = isset($_GET['psl_token']) ? sanitize_text_field((string) $_GET['psl_token']) : '';
+			$mode      = isset($_GET['mode']) ? sanitize_text_field((string)$_GET['mode']) : 'pdf';
+			$course_id = isset($_GET['course_id']) ? (int) $_GET['course_id'] : 0;
+			$dest      = '';
 
-            if ($mode === 'json') {
-                // redirect to JSON endpoint with course_id
-                if ($course_id > 0) {
-                    $dest = add_query_arg(['course_id' => $course_id], rest_url('psl/v1/cert-json'));
-                }
-            } else {
+				if ($mode === 'json') {
+					if ($course_id > 0) {
+						$dest = add_query_arg(
+							[
+								'course_id' => (int) $course_id,
+								'token'     => $token,  
+							],
+							home_url('/wp-json/psl/v1/cert-json')
+						);
+					}
+					if (empty($dest) && !empty($_GET['goto_b64'])) {
+						$maybe = base64_decode(strtr((string)$_GET['goto_b64'], '-_,', '+/='));
+						if ($maybe && preg_match('#^https?://#i', $maybe)) {
+							$dest = $maybe;
+						}
+					}
+				} else {
                 // mode=pdf (default): build fresh certificate link (fresh nonce) after cookie present
                 if ($course_id > 0 && function_exists('learndash_get_course_certificate_link')) {
                     $fresh = (string) learndash_get_course_certificate_link($course_id, $uid);
@@ -219,12 +240,9 @@ poll();
     public static function ajax_create_request() {
         if (!is_user_logged_in()) wp_send_json_error('not_logged_in');
         $user_id = get_current_user_id();
-
         $cert_url = isset($_POST['cert_url']) ? esc_url_raw($_POST['cert_url']) : '';
         if (!$cert_url) wp_send_json_error('missing_cert_url');
-
         $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : 'pdf'; // 'pdf' | 'json'
-
         // Parse course_id from provided certificate URL (for fresh nonce later)
         $course_id = 0;
         $parts = wp_parse_url($cert_url);
@@ -234,7 +252,6 @@ poll();
                 $course_id = (int) $q['course_id'];
             }
         }
-
         // Create record
         $id  = wp_generate_password(20, false, false);
         $rec = [
@@ -248,7 +265,6 @@ poll();
             'mode'      => $mode,
         ];
         set_transient(self::tk($id), $rec, self::REQ_TTL);
-
         // Build URLs (same site/domain)
         $qr_url = home_url('/psl/magic/' . rawurlencode($id));
         $nonce  = wp_create_nonce('psl_magic_approve_' . $id);
@@ -264,7 +280,6 @@ poll();
             'expires_in'  => self::REQ_TTL,
         ]);
     }
-
     /** Approve link (Device 1) */
     public static function maybe_handle_approve_link() {
         $id = get_query_var('psl_magic_approve') ?: ($_GET['psl_magic_approve'] ?? '');
@@ -285,10 +300,8 @@ poll();
         if ((int)($rec['user_id'] ?? 0) !== get_current_user_id()) wp_die('Not allowed.', 'Pexelle', 403);
         if (($rec['expires'] ?? 0) < time()) wp_die('Request expired.', 'Pexelle', 410);
         if (!empty($rec['approved'])) wp_die('Already approved.', 'Pexelle', 200);
-
         $rec['approved'] = true;
         self::set_req($id, $rec);
-
         wp_safe_redirect( add_query_arg('approved', '1', home_url('/')) );
         exit;
     }
