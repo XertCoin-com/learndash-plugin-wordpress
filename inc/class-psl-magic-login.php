@@ -73,42 +73,189 @@ final class Psl_Magic_Login {
     /** Main router: waiting, consume, bridge */
     public static function route_pages() {
         // 1) WAITING PAGE (Device 2 lands here from QR; polls approval; then jumps to consume)
-        $id = get_query_var('psl_magic');
-        if ($id) {
-            $rec = self::get_req($id);
-            status_header(200);
-            nocache_headers();
-            if (!$rec || ($rec['expires'] ?? 0) < time()) {
-                echo '<h2>Link expired or invalid.</h2>';
-                exit;
-            }
-            $consume_url = home_url('/psl/magic/consume/' . rawurlencode($id));
-            $status_url  = rest_url('psl/v1/magic/status/' . rawurlencode($id));
-            ?>
-<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pexelle — Device Handoff</title></head><body>
-<h2>Waiting for approval…</h2>
-<p>Please confirm this login on your other device.</p>
-<div id="state">Status: pending</div>
+      $id = get_query_var('psl_magic');
+if ($id) {
+    $rec = self::get_req($id);
+    status_header(200);
+    nocache_headers();
+    if (!$rec || ($rec['expires'] ?? 0) < time()) {
+        echo '<h2>Link expired or invalid.</h2>';
+        exit;
+    }
+
+    $consume_url  = home_url('/psl/magic/consume/' . rawurlencode($id));
+    $status_url   = rest_url('psl/v1/magic/status/' . rawurlencode($id));
+    $remainingSec = max(0, (int)($rec['expires'] - time())); // countdown
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pexelle — Device Handoff</title>
+<style>
+  :root{
+    --bg:#f7f9fb;
+    --card:#fff;
+    --text:#0f172a;
+    --muted:#475569;
+    --primary:#111827;
+    --border:#e5e7eb;
+    --ok:#059669; /* green-600 */
+    --warn:#b45309; /* amber-700 */
+    --err:#b91c1c; /* red-700 */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  .wrap{
+    min-height:100%;
+    display:grid;
+    place-items:center;
+    padding:24px;
+  }
+  .card{
+    width:100%;
+    max-width:520px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px 22px;
+    box-shadow:0 12px 40px rgba(0,0,0,.08);
+    text-align:center;
+  }
+  .title{margin:4px 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px}
+  .desc{margin:0 0 16px;color:var(--muted);font-size:14px}
+  .status{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;border-radius:9999px;
+    background:#f8fafc;border:1px solid var(--border);color:var(--muted);
+    font-weight:600;font-size:13px;
+  }
+  .status--ok{background:#ecfdf5;border-color:#bbf7d0;color:var(--ok)}
+  .status--warn{background:#fffbeb;border-color:#fde68a;color:var(--warn)}
+  .status--err{background:#fef2f2;border-color:#fecaca;color:var(--err)}
+  .row{margin-top:14px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .pill{
+    min-width:140px;
+    display:flex;flex-direction:column;gap:4px;
+    padding:10px 12px;border:1px dashed var(--border);border-radius:12px;background:#fafafa;
+  }
+  .pill .label{font-size:12px;color:var(--muted)}
+  .pill .value{font-size:16px;font-weight:700;letter-spacing:.3px}
+  /* spinner */
+  .spinner{
+    margin:12px auto 18px;
+    width:36px;height:36px;border-radius:50%;
+    border:3px solid #e5e7eb;border-top-color:#111827;
+    animation:spin .9s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .footer{margin-top:14px;color:#94a3b8;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 class="title">Waiting for approval…</h2>
+    <p class="desc">Please confirm this login on your other device.</p>
+
+    <div class="row">
+      <div class="pill">
+        <span class="label">Status</span>
+        <span id="state" class="value">pending</span>
+      </div>
+      <div class="pill">
+        <span class="label">Time left</span>
+        <span id="countdown" class="value">--:--</span>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <span id="statusBadge" class="status"><span aria-hidden="true">●</span> Pending</span>
+    </div>
+
+    <div class="footer">This link will expire for security.</div>
+  </div>
+</div>
+
 <script>
-const STATUS_URL = <?php echo json_encode($status_url); ?>;
+const STATUS_URL  = <?php echo json_encode($status_url); ?>;
 const CONSUME_URL = <?php echo json_encode($consume_url); ?>;
 let tries = 0;
-function poll(){
-  fetch(STATUS_URL, {credentials:'omit'}).then(r=>r.json()).then(j=>{
-    if(!j || !j.status){ document.getElementById('state').textContent='Status: error'; return; }
-    document.getElementById('state').textContent = 'Status: ' + j.status;
-    if(j.status==='approved'){ window.location.href = CONSUME_URL; return; }
-    if(j.status==='expired'){ return; }
-    tries++; if(tries<120) setTimeout(poll, 2000);
-  }).catch(()=>{ tries++; if(tries<120) setTimeout(poll, 3000); });
+let left  = <?php echo (int) $remainingSec; ?>;
+let pollTimer = null, tickTimer = null;
+
+function fmt(t){
+  t = Math.max(0, t|0);
+  const m = Math.floor(t/60), s = t%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 }
-poll();
+function setBadge(className, text){
+  const el = document.getElementById('statusBadge');
+  el.className = 'status ' + className;
+  el.textContent = text;
+}
+
+function poll(){
+  fetch(STATUS_URL, {credentials:'omit'})
+    .then(r=>r.json())
+    .then(j=>{
+      if(!j || !j.status){
+        document.getElementById('state').textContent='error';
+        setBadge('status--err','Error');
+        return;
+      }
+      document.getElementById('state').textContent = j.status;
+      if(j.status==='approved'){
+        setBadge('status--ok','Approved');
+        clearInterval(pollTimer);
+        clearInterval(tickTimer);
+        setTimeout(()=>{ window.location.href = CONSUME_URL; }, 200);
+        return;
+      }
+      if(j.status==='expired'){
+        setBadge('status--err','Expired');
+        clearInterval(pollTimer);
+        clearInterval(tickTimer);
+        return;
+      }
+      tries++;
+      if(tries>300){ 
+        setBadge('status--warn','Timed out');
+        clearInterval(pollTimer);
+        clearInterval(tickTimer);
+      }
+    })
+    .catch(()=>{
+    });
+}
+
+function tick(){
+  left--;
+  const c = document.getElementById('countdown');
+  c.textContent = fmt(left);
+  if(left <= 0){
+    document.getElementById('state').textContent = 'expired';
+    setBadge('status--err','Expired');
+    clearInterval(pollTimer);
+    clearInterval(tickTimer);
+  } else if(left < 30){
+    setBadge('status--warn','Pending (soon expiring)');
+  }
+}
+
+// init
+document.getElementById('countdown').textContent = fmt(left);
+setBadge('','Pending');
+pollTimer = setInterval(poll, 2000);
+tickTimer = setInterval(tick, 1000);
 </script>
-</body></html>
-            <?php
-            exit;
-        }
+</body>
+</html>
+    <?php
+    exit;
+}
 
         // 2) CONSUME: set login cookie on Device 2, then hop to Bridge on same domain (JS redirect)
         $idc = get_query_var('psl_magic_consume');
