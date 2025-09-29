@@ -3,8 +3,6 @@
 Connect LearnDash with the **Pexelle application infrastructure** through course QR scanning.  
 Seamlessly transfer your **certificates** and **courses** to Pexelle.
 
-![Pexelle QR Modal Example](assets/screenshot-1.png)
-
 ---
 
 ## ✨ Features
