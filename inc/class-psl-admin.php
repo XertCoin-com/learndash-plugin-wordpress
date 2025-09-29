@@ -49,7 +49,7 @@ final class Psl_Admin {
         $opts = get_option(Psl_Plugin::OPTION_KEY, []);
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e('Pexelle Share for LearnDash', 'psl'); ?></h1>
+            <h1><?php esc_html_e('Pexelle for LearnDash', 'psl'); ?></h1>
             <form method="post" action="options.php">
                 <?php settings_fields('psl_share_group'); ?>
                 <?php do_settings_sections('psl-share'); ?>
