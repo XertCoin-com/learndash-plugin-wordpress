@@ -215,67 +215,85 @@ final class Psl_Export {
             }
 
             // quizzes
-            $quizzes = [];
-            $lesson_quizzes = [];
-            $course_quizzes = [];
+        $quizzes = [];
+$lesson_quizzes = [];
+$course_quizzes = [];
 
-            try {
-                if (function_exists('learndash_get_lesson_quiz_list')) {
-                    $lesson_quizzes = (array) learndash_get_lesson_quiz_list($lesson_id, $user_id, $course_id);
-                }
-                if (function_exists('learndash_get_course_quiz_list')) {
-                    $course_quizzes = (array) learndash_get_course_quiz_list($course_id, $user_id);
-                }
-            } catch (\Throwable $e) {
-                $lesson_quizzes = [];
-                $course_quizzes = [];
-            }
+try {
+    if (function_exists('learndash_get_lesson_quiz_list')) {
+        $lesson_quizzes = (array) learndash_get_lesson_quiz_list($lesson_id, $user_id, $course_id);
+    }
+    if (function_exists('learndash_get_course_quiz_list')) {
+        $course_quizzes = (array) learndash_get_course_quiz_list($course_id, $user_id);
+    }
+} catch (\Throwable $e) {
+    $lesson_quizzes = [];
+    $course_quizzes = [];
+}
 
-            $quiz_posts = [];
-            $normalize_quiz_item = function($item) {
-                if (is_array($item) && isset($item['post']) && is_object($item['post'])) return $item['post'];
-                if (is_object($item) && isset($item->ID)) return $item;
-                return null;
-            };
-            foreach ($lesson_quizzes as $it) {
-                $p = $normalize_quiz_item($it);
-                if ($p && get_post_type($p) === 'sfwd-quiz') $quiz_posts[$p->ID] = $p;
-            }
-            foreach ($course_quizzes as $it) {
-                $p = $normalize_quiz_item($it);
-                if ($p && get_post_type($p) === 'sfwd-quiz') $quiz_posts[$p->ID] = $p;
-            }
+$quiz_posts = [];
+$normalize_quiz_item = function($item) {
+    if (is_array($item) && isset($item['post']) && is_object($item['post'])) return $item['post'];
+    if (is_object($item) && isset($item->ID)) return $item;
+    return null;
+};
+foreach ($lesson_quizzes as $it) {
+    $p = $normalize_quiz_item($it);
+    if ($p && get_post_type($p) === 'sfwd-quiz') $quiz_posts[$p->ID] = $p;
+}
+foreach ($course_quizzes as $it) {
+    $p = $normalize_quiz_item($it);
+    if ($p && get_post_type($p) === 'sfwd-quiz') $quiz_posts[$p->ID] = $p;
+}
 
-            foreach ($quiz_posts as $quiz_id => $qp) {
-                $score = null; $passed = null; $percent = null;
+foreach ($quiz_posts as $quiz_id => $qp) {
+    $score = null; $percent = null; $passed = null;
 
-                if ($user_id > 0 && function_exists('learndash_get_user_quiz_attempts')) {
-                    $attempts = learndash_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
-                    if (is_array($attempts) && !empty($attempts)) {
-                        $last = end($attempts);
-                        $s = self::extract_quiz_stats($last);
-                        $score = $s['score']; $percent = $s['percent']; $passed = $s['passed'];
+    if ($user_id > 0 && function_exists('learndash_get_user_quiz_attempts')) {
+        $attempts = learndash_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
+        if (is_array($attempts) && !empty($attempts)) {
+            $last = end($attempts);
+            $s = self::extract_quiz_stats($last);
+            $score = $s['score']; $percent = $s['percent']; $passed = $s['passed'];
+        }
+    }
+
+    if ($score === null && $percent === null && $passed === null) {
+        $user_quizzes = is_user_logged_in() ? get_user_meta($user_id, '_sfwd-quizzes', true) : [];
+        if (is_array($user_quizzes) && !empty($user_quizzes)) {
+            krsort($user_quizzes);
+            foreach ($user_quizzes as $uq) {
+                if (isset($uq['quiz']) && (int)$uq['quiz'] === (int)$quiz_id) {
+                    $score   = isset($uq['score']) ? (float)$uq['score'] : (isset($uq['points']) ? (float)$uq['points'] : null);
+                    $percent = isset($uq['percentage']) ? (float)$uq['percentage'] : null;
+                    $passed  = array_key_exists('pass', $uq) ? (bool)$uq['pass'] : null;
+
+                    $points_max = isset($uq['total_points']) ? (float)$uq['total_points'] : (isset($uq['points_max']) ? (float)$uq['points_max'] : null);
+                    $correct    = isset($uq['count']) ? (float)$uq['count'] : null;
+                    $total      = isset($uq['question_show_count']) ? (float)$uq['question_show_count'] : (isset($uq['total']) ? (float)$uq['total'] : null);
+
+                    if ($percent === null) {
+                        if ($score !== null && $points_max && $points_max > 0) {
+                            $percent = 100.0 * $score / $points_max;
+                        } elseif ($correct !== null && $total && $total > 0) {
+                            $percent = 100.0 * $correct / $total;
+                            if ($score === null) $score = $correct;
+                        }
                     }
+                    break;
                 }
-
-                if (($score===null && $percent===null && $passed===null) && function_exists('ld_get_user_quiz_attempts')) {
-                    $attempts = ld_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
-                    if (is_array($attempts) && !empty($attempts)) {
-                        $last = end($attempts);
-                        $s = self::extract_quiz_stats($last);
-                        $score = $s['score']; $percent = $s['percent']; $passed = $s['passed'];
-                    }
-                }
-
-                $quizzes[] = [
-                    'id'       => (int) $quiz_id,
-                    'title'    => get_the_title($quiz_id),
-                    'score'    => $score,
-                    'percent'  => $percent,
-                    'passed'   => $passed,
-                ];
             }
+        }
+    }
 
+    $quizzes[] = [
+        'id'       => (int)$quiz_id,
+        'title'    => get_the_title($quiz_id),
+        'score'    => is_numeric($score) ? (float)$score : null,
+        'percent'  => is_numeric($percent) ? (float)$percent : null,
+        'passed'   => is_null($passed) ? null : (bool)$passed,
+    ];
+}
             $modules[] = [
                 'id'            => $lesson_id,
                 'title'         => $lesson_title,
