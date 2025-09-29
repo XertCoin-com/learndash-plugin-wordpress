@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Pexelle Share for LearnDash
  * Description: Adds a "Share to Pexelle" button next to LearnDash certificate icon, showing a QR modal of the certificate URL.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Pexelle
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) { exit; }
 define('PSL_PLUGIN_FILE', __FILE__);
 define('PSL_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PSL_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('PSL_VERSION', '1.2.0');
+define('PSL_VERSION', '1.2.1');
 
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-plugin.php';
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-admin.php';
