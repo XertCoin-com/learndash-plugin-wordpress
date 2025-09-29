@@ -27,7 +27,7 @@ final class Psl_Export {
             'args' => [
                 'course_id' => [
                     'required'          => true,
-                    'type'              => 'string', 
+                    'type'              => 'string',
                     'sanitize_callback' => function($value){ return (string) preg_replace('/\D+/', '', (string) $value); },
                     'validate_callback' => function($value){ return (bool) absint($value); }, // >0
                 ],
@@ -143,6 +143,7 @@ final class Psl_Export {
         foreach ($lessons as $lesson) {
             $lesson_id    = is_object($lesson) ? $lesson->ID : (int)$lesson;
             $lesson_title = get_the_title($lesson_id);
+            $lesson_desc  = wp_strip_all_tags( (string) get_post_field('post_content', $lesson_id) );
 
             $lesson_completed = false;
             if ($user_id > 0 && function_exists('learndash_is_lesson_complete')) {
@@ -190,15 +191,19 @@ final class Psl_Export {
             }
 
             foreach ($topics_raw as $topic) {
-                $topic_id = is_object($topic) ? $topic->ID : (int)$topic;
+                $topic_id    = is_object($topic) ? $topic->ID : (int)$topic;
+                $topic_title = get_the_title($topic_id);
+                $topic_desc  = wp_strip_all_tags( (string) get_post_field('post_content', $topic_id) );
+
                 $topic_completed = false;
                 if ($user_id > 0 && function_exists('learndash_is_topic_complete')) {
                     $topic_completed = (bool) learndash_is_topic_complete($user_id, $topic_id, $course_id);
                 }
                 $topics[] = [
-                    'id'        => $topic_id,
-                    'title'     => get_the_title($topic_id),
-                    'completed' => $topic_completed,
+                    'id'          => $topic_id,
+                    'title'       => $topic_title,
+                    'description' => $topic_desc,
+                    'completed'   => $topic_completed,
                 ];
             }
 
@@ -237,30 +242,30 @@ final class Psl_Export {
             foreach ($quiz_posts as $quiz_id => $qp) {
                 $score = null; $passed = null; $percent = null;
                 if ($user_id > 0 && function_exists('learndash_get_user_quiz_attempts')) {
-    $attempts = learndash_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
+                    $attempts = learndash_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
 
-    if (is_array($attempts) && !empty($attempts)) {
-        $last = end($attempts);
+                    if (is_array($attempts) && !empty($attempts)) {
+                        $last = end($attempts);
 
-        $get = function($objOrArr, $key) {
-            if (is_array($objOrArr)) {
-                return array_key_exists($key, $objOrArr) ? $objOrArr[$key] : null;
-            }
-            if (is_object($objOrArr)) {
-                return isset($objOrArr->{$key}) ? $objOrArr->{$key} : null;
-            }
-            return null;
-        };
+                        $get = function($objOrArr, $key) {
+                            if (is_array($objOrArr)) {
+                                return array_key_exists($key, $objOrArr) ? $objOrArr[$key] : null;
+                            }
+                            if (is_object($objOrArr)) {
+                                return isset($objOrArr->{$key}) ? $objOrArr->{$key} : null;
+                            }
+                            return null;
+                        };
 
-        $scoreVal   = $get($last, 'score');
-        $percentVal = $get($last, 'percentage');
-        $passVal    = $get($last, 'pass');
+                        $scoreVal   = $get($last, 'score');
+                        $percentVal = $get($last, 'percentage');
+                        $passVal    = $get($last, 'pass');
 
-        $score   = is_numeric($scoreVal)   ? (float) $scoreVal   : null;
-        $percent = is_numeric($percentVal) ? (float) $percentVal : null;
-        $passed  = !is_null($passVal)      ? (bool)  $passVal    : null;
-    }
-}
+                        $score   = is_numeric($scoreVal)   ? (float) $scoreVal   : null;
+                        $percent = is_numeric($percentVal) ? (float) $percentVal : null;
+                        $passed  = !is_null($passVal)      ? (bool)  $passVal    : null;
+                    }
+                }
                 $quizzes[] = [
                     'id'       => (int) $quiz_id,
                     'title'    => get_the_title($quiz_id),
@@ -273,6 +278,7 @@ final class Psl_Export {
             $modules[] = [
                 'id'            => $lesson_id,
                 'title'         => $lesson_title,
+                'description'   => $lesson_desc,
                 'completed'     => $lesson_completed,
                 'topics_count'  => count($topics),
                 'topics'        => $topics,
