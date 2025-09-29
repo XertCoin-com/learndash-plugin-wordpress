@@ -1,33 +1,99 @@
+/* container + overlay */
 .psl-modal{position:fixed;inset:0;display:none;z-index:9999}
 .psl-modal[aria-hidden="false"]{display:block}
-.psl-modal__overlay{position:absolute;inset:0;background:rgba(0,0,0,.5)}
-.psl-modal__dialog{position:relative;margin:5vh auto;background:#fff;border-radius:16px;max-width:520px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
-.psl-modal__close{position:absolute;right:12px;top:12px;border:0;background:transparent;font-size:28px;line-height:1;cursor:pointer}
-.psl-modal__title{margin:0 0 8px;font-size:20px}
-.psl-modal__desc{margin:0 0 16px;color:#444}
-.psl-qr{display:flex;align-items:center;justify-content:center;min-height:220px;border:1px dashed #ddd;border-radius:12px}
-.psl-modal__actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
-.psl-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;border:1px solid #1a7;cursor:pointer;text-decoration:none}
-.psl-btn:hover{background:#f4fffb}
-.psl-btn--ghost{background:#fff}
-.psl-share-btn {
-  margin-left: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid #fff;
-  border-radius: 8px;
-  background: #000;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1;
-  transition: all 0.25s ease;
+.psl-modal__overlay{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,.55);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 
-.psl-share-btn:hover {
-  background: #fff;
-  color: #000;
+/* dialog */
+.psl-modal__dialog{
+  position:relative;
+  margin:6vh auto;
+  background:#fff;
+  border-radius:16px;
+  max-width:560px;
+  padding:28px 24px 24px;
+  box-shadow:0 18px 60px rgba(0,0,0,.25);
+  opacity:0; transform:translateY(14px) scale(.985);
+  transition:opacity .2s ease, transform .2s ease;
 }
+.psl-modal[aria-hidden="false"] .psl-modal__dialog{
+  opacity:1; transform:translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce){
+  .psl-modal__dialog{transition:none}
+}
+
+/* close button (black) */
+.psl-modal__close{
+  position:absolute;right:12px;top:12px;
+  width:34px;height:34px;
+  display:inline-grid;place-items:center;
+  border:0;border-radius:9999px;
+  background:#000;color:#fff;
+  cursor:pointer;
+  line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+  transition:transform .15s ease, opacity .15s ease, background .15s ease, color .15s ease;
+}
+.psl-modal__close:hover{transform:scale(1.06)}
+.psl-modal__close:active{transform:scale(.98);opacity:.9}
+.psl-modal__close:focus-visible{outline:2px solid #111; outline-offset:2px}
+
+/* headings + copy */
+.psl-modal__title{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:.2px}
+.psl-modal__desc{margin:0 0 16px;color:#444;font-size:14px}
+
+/* QR box */
+.psl-qr{
+  display:flex;align-items:center;justify-content:center;
+  min-height:220px;
+  border:1px dashed #e5e7eb;
+  border-radius:14px;
+  background:
+    radial-gradient(ellipse at top left, #fafafa 0%, transparent 40%),
+    radial-gradient(ellipse at bottom right, #f7f7f7 0%, transparent 45%);
+}
+
+/* actions */
+.psl-modal__actions{
+  margin-top:18px;display:flex;gap:10px;flex-wrap:wrap
+}
+
+/* buttons */
+.psl-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 14px;border-radius:10px;
+  border:1px solid #167c66; /* #1a7-ish */
+  background:#12b28c;      /* primary fill */
+  color:#fff;text-decoration:none;cursor:pointer;
+  font-size:14px;font-weight:600;line-height:1;
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
+  box-shadow:0 6px 18px rgba(18,178,140,.25);
+}
+.psl-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(18,178,140,.28)}
+.psl-btn:active{transform:translateY(0);box-shadow:0 4px 14px rgba(18,178,140,.22)}
+.psl-btn:focus-visible{outline:2px solid #0f766e; outline-offset:2px}
+
+/* ghost variant */
+.psl-btn--ghost{
+  background:#fff;color:#0b3c33;border-color:#c9ecdf;
+  box-shadow:none;
+}
+.psl-btn--ghost:hover{background:#f7fffc;border-color:#9fe6d3}
+
+/* button icons */
+.psl-icon{display:inline-grid;place-items:center}
+.psl-icon svg{display:block}
+
+/* existing share button style (if used elsewhere) */
+.psl-share-btn{
+  margin-left:8px;display:inline-flex;align-items:center;gap:6px;
+  padding:8px 14px;border:1px solid #fff;border-radius:8px;
+  background:#000;color:#fff;cursor:pointer;font-size:14px;font-weight:500;line-height:1;
+  transition:all .25s ease;
+}
+.psl-share-btn:hover{background:#fff;color:#000}
