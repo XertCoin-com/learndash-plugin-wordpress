@@ -23,8 +23,8 @@ final class Psl_Plugin {
             $defaults = [
                 'enabled'         => 1,
                 'button_text'     => 'Share to Pexelle',
-                'help_install_url'=> 'https://pexelle.com/install',
-                'help_how_url'    => 'https://pexelle.com/how-it-works',
+                'help_install_url'=> 'https://deeplink.pexelle.com/',
+                'help_how_url'    => 'https://pexelle.com/category/learning-pexelle-app/',
             ];
             add_option(self::OPTION_KEY, $defaults, '', false);
         }
