@@ -3,6 +3,7 @@ namespace PSL;
 if (!defined('ABSPATH')) { exit; }
 
 final class Psl_Export {
+
     public static function init() {
         add_action('rest_api_init', [__CLASS__, 'register_rest']);
     }
@@ -35,6 +36,10 @@ final class Psl_Export {
                     'required' => false,
                     'type'     => 'string',
                 ],
+                'use_html' => [
+                    'required' => false,
+                    'type'     => 'boolean',
+                ],
             ]
         ]);
     }
@@ -46,10 +51,10 @@ final class Psl_Export {
         if ( !$course_id || get_post_type($course_id) !== 'sfwd-courses' ) {
             return new \WP_REST_Response(['error' => 'Invalid course_id'], 400);
         }
-        $token = sanitize_text_field((string) $request->get_param('token'));
+        $token    = sanitize_text_field((string) $request->get_param('token'));
+        $use_html = (bool) $request->get_param('use_html');
 
         $effective_user_id = 0;
-        $token_rec = null;
         if (is_user_logged_in()) {
             $effective_user_id = get_current_user_id();
         } elseif ($token) {
@@ -73,9 +78,14 @@ final class Psl_Export {
         $course = [
             'id'          => $course_id,
             'title'       => get_the_title($course_id),
-            'excerpt'     => wp_strip_all_tags( get_the_excerpt($course_id) ),
-            'description' => wp_strip_all_tags( $course_post ? $course_post->post_content : '' ),
+            'excerpt'     => $use_html ? get_the_excerpt($course_id) : wp_strip_all_tags( get_the_excerpt($course_id) ),
+            'description' => $use_html
+                ? ( $course_post ? (string)$course_post->post_content : '' )
+                : wp_strip_all_tags( $course_post ? $course_post->post_content : '' ),
         ];
+
+        $course_created = self::iso_gmt( get_post_field('post_date_gmt', $course_id) );
+        $course_updated = self::iso_gmt( get_post_field('post_modified_gmt', $course_id) );
 
         $cert_url = '';
         if ($user_id > 0 && function_exists('learndash_get_course_certificate_link')) {
@@ -102,9 +112,7 @@ final class Psl_Export {
         }
         $course['progress'] = $progress;
 
-        $modules = [];
         $lessons = [];
-
         if (function_exists('learndash_get_lesson_list')) {
             try {
                 $ld_args = [
@@ -113,9 +121,7 @@ final class Psl_Export {
                     'order'          => 'ASC',
                 ];
                 $res = learndash_get_lesson_list($course_id, $user_id, $ld_args);
-                if (is_wp_error($res) || $res === null) {
-                    throw new \Exception('LD lesson list returned null/WP_Error');
-                }
+                if (is_wp_error($res) || $res === null) throw new \Exception('LD lesson list returned null/WP_Error');
                 $lessons = (array) $res;
             } catch (\Throwable $e) {
                 $lessons = get_posts([
@@ -140,10 +146,12 @@ final class Psl_Export {
             ]);
         }
 
+        $modules = [];
         foreach ($lessons as $lesson) {
             $lesson_id    = is_object($lesson) ? $lesson->ID : (int)$lesson;
             $lesson_title = get_the_title($lesson_id);
-            $lesson_desc  = wp_strip_all_tags( (string) get_post_field('post_content', $lesson_id) );
+            $lesson_raw   = (string) get_post_field('post_content', $lesson_id);
+            $lesson_desc  = $use_html ? $lesson_raw : wp_strip_all_tags( $lesson_raw );
 
             $lesson_completed = false;
             if ($user_id > 0 && function_exists('learndash_is_lesson_complete')) {
@@ -161,9 +169,7 @@ final class Psl_Export {
                         'order'          => 'ASC',
                     ];
                     $res = learndash_get_topic_list($lesson_id, $course_id, $user_id, $targs);
-                    if (is_wp_error($res) || $res === null) {
-                        throw new \Exception('LD topic list returned null/WP_Error');
-                    }
+                    if (is_wp_error($res) || $res === null) throw new \Exception('LD topic list returned null/WP_Error');
                     $topics_raw = (array) $res;
                 } catch (\Throwable $e) {
                     $topics_raw = get_posts([
@@ -193,7 +199,8 @@ final class Psl_Export {
             foreach ($topics_raw as $topic) {
                 $topic_id    = is_object($topic) ? $topic->ID : (int)$topic;
                 $topic_title = get_the_title($topic_id);
-                $topic_desc  = wp_strip_all_tags( (string) get_post_field('post_content', $topic_id) );
+                $topic_raw   = (string) get_post_field('post_content', $topic_id);
+                $topic_desc  = $use_html ? $topic_raw : wp_strip_all_tags( $topic_raw );
 
                 $topic_completed = false;
                 if ($user_id > 0 && function_exists('learndash_is_topic_complete')) {
@@ -241,31 +248,25 @@ final class Psl_Export {
 
             foreach ($quiz_posts as $quiz_id => $qp) {
                 $score = null; $passed = null; $percent = null;
+
                 if ($user_id > 0 && function_exists('learndash_get_user_quiz_attempts')) {
                     $attempts = learndash_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
-
                     if (is_array($attempts) && !empty($attempts)) {
                         $last = end($attempts);
-
-                        $get = function($objOrArr, $key) {
-                            if (is_array($objOrArr)) {
-                                return array_key_exists($key, $objOrArr) ? $objOrArr[$key] : null;
-                            }
-                            if (is_object($objOrArr)) {
-                                return isset($objOrArr->{$key}) ? $objOrArr->{$key} : null;
-                            }
-                            return null;
-                        };
-
-                        $scoreVal   = $get($last, 'score');
-                        $percentVal = $get($last, 'percentage');
-                        $passVal    = $get($last, 'pass');
-
-                        $score   = is_numeric($scoreVal)   ? (float) $scoreVal   : null;
-                        $percent = is_numeric($percentVal) ? (float) $percentVal : null;
-                        $passed  = !is_null($passVal)      ? (bool)  $passVal    : null;
+                        $s = self::extract_quiz_stats($last);
+                        $score = $s['score']; $percent = $s['percent']; $passed = $s['passed'];
                     }
                 }
+
+                if (($score===null && $percent===null && $passed===null) && function_exists('ld_get_user_quiz_attempts')) {
+                    $attempts = ld_get_user_quiz_attempts($user_id, $quiz_id, $course_id);
+                    if (is_array($attempts) && !empty($attempts)) {
+                        $last = end($attempts);
+                        $s = self::extract_quiz_stats($last);
+                        $score = $s['score']; $percent = $s['percent']; $passed = $s['passed'];
+                    }
+                }
+
                 $quizzes[] = [
                     'id'       => (int) $quiz_id,
                     'title'    => get_the_title($quiz_id),
@@ -286,6 +287,12 @@ final class Psl_Export {
             ];
         }
 
+        $modules_count = count($modules);
+        $topics_count  = 0;
+        foreach ($modules as $m) {
+            $topics_count += (int)($m['topics_count'] ?? 0);
+        }
+
         $display_name = false;
         if ($user_id > 0) {
             $u = get_userdata($user_id);
@@ -293,6 +300,13 @@ final class Psl_Export {
         }
 
         $payload = [
+            'meta' => [
+                'course_id'     => $course_id,
+                'modules_count' => $modules_count,
+                'topics_count'  => $topics_count,
+                'created_at'    => $course_created,
+                'updated_at'    => $course_updated,
+            ],
             'user' => [
                 'id'           => $user_id,
                 'display_name' => $display_name,
@@ -318,5 +332,57 @@ final class Psl_Export {
         }
 
         return new \WP_REST_Response($payload, 200);
+    }
+
+    /* ---------- Helpers ---------- */
+
+    private static function iso_gmt($post_field_gmt) {
+        $v = (string) $post_field_gmt;
+        if (!$v) return null;
+        try {
+            $ts = strtotime($v);
+            return $ts ? gmdate('c', $ts) : null; // ISO-8601 in GMT
+        } catch (\Throwable $e) { return null; }
+    }
+
+    private static function extract_quiz_stats($attempt) {
+        $get = function($src, $key) {
+            if (is_array($src))   return array_key_exists($key, $src) ? $src[$key] : null;
+            if (is_object($src))  return isset($src->{$key}) ? $src->{$key} : null;
+            return null;
+        };
+
+        $score   = $get($attempt, 'score');
+        $percent = $get($attempt, 'percentage');
+        $passed  = $get($attempt, 'pass');
+
+        $points      = $get($attempt, 'points')       ?? $get($attempt, 'earned_points') ?? $get($attempt, 'quiz_score');
+        $points_max  = $get($attempt, 'points_max')   ?? $get($attempt, 'total_points')  ?? $get($attempt, 'quiz_mark');
+        $correct     = $get($attempt, 'count');
+        $total       = $get($attempt, 'question_count') ?? $get($attempt, 'total');
+
+        if (!is_numeric($percent)) {
+            if (is_numeric($score) && is_numeric($points_max) && $points_max > 0) {
+                $percent = 100.0 * ((float)$score) / ((float)$points_max);
+            } elseif (is_numeric($points) && is_numeric($points_max) && $points_max > 0) {
+                $percent = 100.0 * ((float)$points) / ((float)$points_max);
+                if (!is_numeric($score)) $score = (float)$points;
+            } elseif (is_numeric($correct) && is_numeric($total) && $total > 0) {
+                $percent = 100.0 * ((float)$correct) / ((float)$total);
+                if (!is_numeric($score)) $score = (float)$correct;
+            }
+        }
+
+        if (!is_bool($passed) && !is_null($passed)) {
+            $passed = (bool) $passed;
+        } elseif (is_null($passed)) {
+            $passed = null;
+        }
+
+        return [
+            'score'   => is_numeric($score)   ? (float)$score   : null,
+            'percent'  => is_numeric($percent) ? (float)$percent : null,
+            'passed'  => is_null($passed) ? null : (bool)$passed,
+        ];
     }
 }
