@@ -65,6 +65,7 @@ public static function render_settings_page() {
     </div>
     <?php
 }
+    
     public static function field_enabled() {
         $opts = get_option(Psl_Plugin::OPTION_KEY, []);
         ?>
