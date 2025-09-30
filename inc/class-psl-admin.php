@@ -44,21 +44,27 @@ final class Psl_Admin {
         return $out;
     }
 
-    public static function render_settings_page() {
-        if (!current_user_can('manage_options')) { return; }
-        $opts = get_option(Psl_Plugin::OPTION_KEY, []);
-        ?>
-        <div class="wrap">
-            <h1><?php esc_html_e('Pexelle for LearnDash', 'psl'); ?></h1>
-            <form method="post" action="options.php">
-                <?php settings_fields('psl_share_group'); ?>
-                <?php do_settings_sections('psl-share'); ?>
-                <?php submit_button(); ?>
-            </form>
-        </div>
-        <?php
-    }
+public static function render_settings_page() {
+    if (!current_user_can('manage_options')) { return; }
+    $opts = get_option(Psl_Plugin::OPTION_KEY, []);
 
+    $logo_url = plugins_url('assets/images/cropped-unido-logoFS2.png', dirname(__FILE__));
+    ?>
+    <div class="wrap">
+        <div style="margin-bottom:20px;">
+            <img src="<?php echo esc_url($logo_url); ?>" alt="<?php esc_attr_e('Pexelle Logo', 'psl'); ?>" style="max-width:100%; height:auto; border-radius:8px;"/>
+        </div>
+
+        <h1><?php esc_html_e('Pexelle for LearnDash', 'psl'); ?></h1>
+
+        <form method="post" action="options.php">
+            <?php settings_fields('psl_share_group'); ?>
+            <?php do_settings_sections('psl-share'); ?>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+    <?php
+}
     public static function field_enabled() {
         $opts = get_option(Psl_Plugin::OPTION_KEY, []);
         ?>
