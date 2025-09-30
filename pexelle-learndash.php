@@ -3,7 +3,7 @@
  * Plugin Name: Pexelle for LearnDash
  * Plugin URI:  https://pexelle.com/learndash-plugin
  * Description: Connect LearnDash with the Pexelle application infrastructure through course QR scanning. With this plugin, you can seamlessly transfer your certificates and courses to Pexelle.
- * Version:     1.2.2
+ * Version:     1.2.3
  * Author:      Pexelle
  * Author URI:  https://pexelle.com
  * Requires at least: 6.0
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) { exit; }
 define('PSL_PLUGIN_FILE', __FILE__);
 define('PSL_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PSL_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('PSL_VERSION', '1.2.2');
+define('PSL_VERSION', '1.2.3');
 
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-plugin.php';
 require_once PSL_PLUGIN_DIR . 'inc/class-psl-admin.php';
