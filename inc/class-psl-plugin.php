@@ -13,10 +13,6 @@ final class Psl_Plugin {
         add_action('init', [__CLASS__, 'load_textdomain']);
     }
 
-    public static function load_textdomain() {
-        load_plugin_textdomain('psl', false, dirname(plugin_basename(PSL_PLUGIN_FILE)) . '/languages/');
-    }
-
     public static function maybe_set_defaults() {
         $opts = get_option(self::OPTION_KEY);
         if (!$opts || !is_array($opts)) {
