@@ -13,8 +13,8 @@ Connect LearnDash with the Pexelle application infrastructure through course QR 
 
 == Description ==
 
-**Pexelle for LearnDash** allows you to extend LearnDash with QR-powered certificate sharing.  
-Students can scan a course QR code and securely connect their certificates to the **Pexelle app**.  
+Connect LearnDash to Pexelle via secure QR handoff. Share and verify certificates, or export clean JSON for integrations.
+
 
 Key features:
 - 🔗 **Seamless integration** with LearnDash courses  
