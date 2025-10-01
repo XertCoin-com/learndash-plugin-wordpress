@@ -38,6 +38,7 @@ final class Psl_Frontend {
             'certSelector'=> '.ld-certificate-link',
             'ajax_url'    => admin_url('admin-ajax.php'),
             'site_url'    => home_url('/'),
+            'ajaxNonce'   => wp_create_nonce('psl_magic_create'),
         ];
         wp_localize_script('psl-frontend', 'PSL_SETTINGS', $data);
         wp_enqueue_script('psl-frontend');
