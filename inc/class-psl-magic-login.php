@@ -292,7 +292,7 @@ tickTimer = setInterval(tick, 1000);
 				'created'   => time(),
 			], 10 * MINUTE_IN_SECONDS);
 
-
+			$bridge_nonce = wp_create_nonce('psl_bridge_' . (int) $uid);
             // build Bridge URL (same-domain), pass only compact safe params
             $bridge = add_query_arg(array_filter([
 				'psl_after_login' => 1,
@@ -300,6 +300,7 @@ tickTimer = setInterval(tick, 1000);
 				'mode'            => $mode ?: null,
 				'goto_b64'        => $fallback_b64 ?: null,
 				'psl_token'       => $token,
+				'psl_bridge_nonce'=> $bridge_nonce,
 			]), home_url('/'));
 
             status_header(200);
