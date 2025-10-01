@@ -440,14 +440,20 @@ tickTimer = setInterval(tick, 1000);
     }
     /** Approve link (Device 1) */
     public static function maybe_handle_approve_link() {
-        $id = get_query_var('psl_magic_approve') ?: ($_GET['psl_magic_approve'] ?? '');
-        if (!$id) return;
-
-        $nonce = get_query_var('psl_magic_nonce') ?: ($_GET['psl_magic_nonce'] ?? '');
-        if (!wp_verify_nonce($nonce, 'psl_magic_approve_' . $id)) {
-            wp_die('Invalid approval link.', 'Pexelle', 403);
-        }
-
+		$id = get_query_var('psl_magic_approve');
+		if ( ! $id && isset($_GET['psl_magic_approve']) ) {
+		    $id = sanitize_text_field( wp_unslash( $_GET['psl_magic_approve'] ) );
+		}
+		if (!$id) return;
+		
+		$nonce = get_query_var('psl_magic_nonce');
+		if ( ! $nonce && isset($_GET['psl_magic_nonce']) ) {
+		    $nonce = sanitize_text_field( wp_unslash( $_GET['psl_magic_nonce'] ) );
+		}
+		if (!wp_verify_nonce($nonce, 'psl_magic_approve_' . $id)) {
+		    wp_die('Invalid approval link.', 'Pexelle', 403);
+		}
+				
         if (!is_user_logged_in()) {
             auth_redirect(); // force login
             return;
