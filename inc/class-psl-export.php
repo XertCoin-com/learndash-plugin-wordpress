@@ -129,6 +129,7 @@ final class Psl_Export {
                     'numberposts' => -1,
                     'orderby'     => 'menu_order',
                     'order'       => 'ASC',
+                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash stores course relationship in postmeta; using LD API first, this is a guarded fallback.                 
                     'meta_query'  => [
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ]
                     ]
@@ -140,6 +141,7 @@ final class Psl_Export {
                 'numberposts' => -1,
                 'orderby'     => 'menu_order',
                 'order'       => 'ASC',
+                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash relationship via postmeta; fallback path only.
                 'meta_query'  => [
                     [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ]
                 ]
@@ -177,6 +179,7 @@ final class Psl_Export {
                     'numberposts'               => -1,
                     'orderby'                   => 'menu_order',
                     'order'                     => 'ASC',
+                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash stores lesson/course linkage in postmeta; API attempted first (try/catch).
                     'meta_query'                => [
                         [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
@@ -193,6 +196,7 @@ final class Psl_Export {
                     'numberposts'               => -1,
                     'orderby'                   => 'menu_order',
                     'order'                     => 'ASC',
+                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Required by LearnDash data model; safe + bounded query with fields=ids.
                     'meta_query'                => [
                         [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
