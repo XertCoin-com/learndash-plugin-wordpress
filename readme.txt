@@ -3,9 +3,9 @@ Contributors: pexelle
 Donate link: https://pexelle.com
 Tags: learndash, certificate, qr code, pexelle, share
 Requires at least: 6.0
-Tested up to: 6.6
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
