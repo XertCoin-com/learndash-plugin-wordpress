@@ -62,6 +62,7 @@ final class Psl_Magic_Login {
         $vars[] = 'psl_magic_consume';
         $vars[] = 'psl_magic_approve';
         $vars[] = 'psl_magic_nonce';
+		$vars[] = 'psl_bridge_nonce';
         // Bridge:
         $vars[] = 'psl_after_login';
         $vars[] = 'goto_b64';
