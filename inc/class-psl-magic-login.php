@@ -331,7 +331,7 @@ tickTimer = setInterval(tick, 1000);
     // Safely read GET params with unslash + sanitize
     $token     = isset($_GET['psl_token']) ? sanitize_text_field( wp_unslash( $_GET['psl_token'] ) ) : '';
     $mode      = isset($_GET['mode']) ? sanitize_text_field( wp_unslash( $_GET['mode'] ) ) : 'pdf';
-    $course_id = isset($_GET['course_id']) ? (int) wp_unslash( $_GET['course_id'] ) : 0;
+    $course_id = isset($_GET['course_id']) ? absint( wp_unslash( $_GET['course_id'] ) ) : 0;
     $dest      = '';
 
     if ($mode === 'json') {
