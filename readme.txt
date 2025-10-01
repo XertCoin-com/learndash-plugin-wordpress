@@ -5,7 +5,7 @@ Tags: learndash, certificate, qr code, pexelle, share
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.4
+Stable tag: 1.2.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,14 @@ Currently tested on single-site WordPress. Multisite support is planned.
 3. Certificate transfer confirmation
 
 == Changelog ==
+= 1.2.5 =
+* Sanitized all `$_GET` and `$_POST` inputs with `wp_unslash()` + `sanitize_text_field()` / `absint()` for strict security compliance.
+* Removed `suppress_filters => true` from WP_Query calls to meet WordPress.org and VIP coding standards.
+* Optimized query arguments (`fields => ids`, `no_found_rows`, `update_post_meta_cache` disabled) for performance.
+* Shortened plugin short description to be under 150 characters (required for WordPress.org parser).
+* Added inline PHPCS ignore comments for unavoidable `meta_query` usage (LearnDash dependency).
+* General code cleanup and compliance improvements for plugin repository review.
+
 = 1.2.4 =
 * Added full nonce verification and wp_unslash() handling for all AJAX and GET/POST inputs.
 * Secured Magic Login flow with bridge nonce to prevent CSRF-style misuse.
