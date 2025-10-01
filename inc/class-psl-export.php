@@ -173,26 +173,36 @@ final class Psl_Export {
                     $topics_raw = (array) $res;
                 } catch (\Throwable $e) {
                     $topics_raw = get_posts([
-                        'post_type'   => 'sfwd-topic',
-                        'numberposts' => -1,
-                        'orderby'     => 'menu_order',
-                        'order'       => 'ASC',
-                        'meta_query'  => [
-                            [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
-                            [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
-                        ]
-                    ]);
+                    'post_type'                 => 'sfwd-topic',
+                    'numberposts'               => -1,
+                    'orderby'                   => 'menu_order',
+                    'order'                     => 'ASC',
+                    'meta_query'                => [
+                        [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
+                        [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
+                    ],
+                    'fields'                    => 'ids',
+                    'no_found_rows'             => true,
+                    'update_post_meta_cache'    => false,
+                    'update_post_term_cache'    => false,
+                    'suppress_filters'          => true,
+                ]);
                 }
             } else {
                 $topics_raw = get_posts([
-                    'post_type'   => 'sfwd-topic',
-                    'numberposts' => -1,
-                    'orderby'     => 'menu_order',
-                    'order'       => 'ASC',
-                    'meta_query'  => [
+                    'post_type'                 => 'sfwd-topic',
+                    'numberposts'               => -1,
+                    'orderby'                   => 'menu_order',
+                    'order'                     => 'ASC',
+                    'meta_query'                => [
                         [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
-                    ]
+                    ],
+                    'fields'                    => 'ids',
+                    'no_found_rows'             => true,
+                    'update_post_meta_cache'    => false,
+                    'update_post_term_cache'    => false,
+                    'suppress_filters'          => true,
                 ]);
             }
 

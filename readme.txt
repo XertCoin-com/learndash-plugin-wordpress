@@ -13,8 +13,8 @@ Connect LearnDash with the Pexelle application infrastructure through course QR 
 
 == Description ==
 
-**Pexelle for LearnDash** allows you to extend LearnDash with QR-powered certificate sharing.  
-Students can scan a course QR code and securely connect their certificates to the **Pexelle app**.  
+Connect LearnDash to Pexelle via secure QR handoff. Share and verify certificates, or export clean JSON for integrations.
+
 
 Key features:
 - 🔗 **Seamless integration** with LearnDash courses  
@@ -52,6 +52,15 @@ Currently tested on single-site WordPress. Multisite support is planned.
 3. Certificate transfer confirmation
 
 == Changelog ==
+= 1.2.4 =
+* Added full nonce verification and wp_unslash() handling for all AJAX and GET/POST inputs.
+* Secured Magic Login flow with bridge nonce to prevent CSRF-style misuse.
+* Updated frontend JS (psl-frontend.js) to include and send `ajaxNonce` with AJAX requests.
+* Optimized database queries with `fields => ids`, disabled meta/term cache for faster response.
+* Improved code compliance with WordPress Plugin Check (PHPCS).
+* Shortened plugin description for WordPress.org readme parser (≤150 chars).
+* Maintenance release — focused on passing automated + manual plugin review checks.
+
 = 1.2.3 =
 * Aligned Text Domain with plugin slug: pexelle-for-learndash.
 * Removed discouraged load_plugin_textdomain() (WP ≥ 4.6 auto-loads translations on wp.org).

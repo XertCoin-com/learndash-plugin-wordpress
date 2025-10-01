@@ -94,21 +94,29 @@
     }
   };
 
-function createMagicRequest(certUrl){
-  if (!PSL_SETTINGS.ajax_url) {
-    return Promise.reject(new Error('ajax_url not set'));
-  }
-  const mode = (PSL_SETTINGS.exportMode || 'json');
-  const body = 'action=psl_magic_create&mode=' + encodeURIComponent(mode) +
-               '&cert_url=' + encodeURIComponent(certUrl);
-  return fetch(PSL_SETTINGS.ajax_url, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-    body
-  }).then(r => r.json());
-}
+  function createMagicRequest(certUrl){
+    if (!PSL_SETTINGS.ajax_url) {
+      return Promise.reject(new Error('ajax_url not set'));
+    }
+    const mode  = (PSL_SETTINGS.exportMode || 'json');
+    const nonce = (PSL_SETTINGS.ajaxNonce || '');
+    if (!nonce) {
+      console.warn('[PSL] ajaxNonce is missing; request may be rejected by server.');
+    }
 
+    const params = new URLSearchParams();
+    params.set('action', 'psl_magic_create');
+    params.set('mode', mode);
+    params.set('cert_url', certUrl);
+    if (nonce) params.set('nonce', nonce);
+
+    return fetch(PSL_SETTINGS.ajax_url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: params.toString()
+    }).then(r => r.json());
+  }
 
   function onShareClick(certUrl){
     Modal.open('about:blank');
@@ -125,7 +133,10 @@ function createMagicRequest(certUrl){
         Modal.renderActions(approveUrl);
       })
       .catch(err => {
-        if (Modal.qrEl) Modal.qrEl.innerHTML = '<p style="color:#c00">Error: ' + (err && err.message ? err.message : 'Unknown') + '</p>';
+        if (Modal.qrEl) {
+          Modal.qrEl.innerHTML =
+            '<p style="color:#c00">Error: ' + (err && err.message ? err.message : 'Unknown') + '</p>';
+        }
         Modal.clearActions();
       });
   }
@@ -164,7 +175,6 @@ function createMagicRequest(certUrl){
   document.addEventListener('DOMContentLoaded', () => {
     Modal.mount();
     watchForCertificates();
-
   });
 
 })();

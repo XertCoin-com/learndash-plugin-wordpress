@@ -62,6 +62,7 @@ final class Psl_Magic_Login {
         $vars[] = 'psl_magic_consume';
         $vars[] = 'psl_magic_approve';
         $vars[] = 'psl_magic_nonce';
+		$vars[] = 'psl_bridge_nonce';
         // Bridge:
         $vars[] = 'psl_after_login';
         $vars[] = 'goto_b64';
@@ -291,7 +292,7 @@ tickTimer = setInterval(tick, 1000);
 				'created'   => time(),
 			], 10 * MINUTE_IN_SECONDS);
 
-
+			$bridge_nonce = wp_create_nonce('psl_bridge_' . (int) $uid);
             // build Bridge URL (same-domain), pass only compact safe params
             $bridge = add_query_arg(array_filter([
 				'psl_after_login' => 1,
@@ -299,6 +300,7 @@ tickTimer = setInterval(tick, 1000);
 				'mode'            => $mode ?: null,
 				'goto_b64'        => $fallback_b64 ?: null,
 				'psl_token'       => $token,
+				'psl_bridge_nonce'=> $bridge_nonce,
 			]), home_url('/'));
 
             status_header(200);
@@ -311,61 +313,68 @@ tickTimer = setInterval(tick, 1000);
 
         // 3) BRIDGE: ensure cookie is visible, then redirect to final destination (PDF or JSON)
         if ( get_query_var('psl_after_login') || isset($_GET['psl_after_login']) ) {
-            nocache_headers();
+    nocache_headers();
 
-            // Make sure cookie is actually committed
-            if ( ! is_user_logged_in() ) {
-                echo '<!doctype html><meta charset="utf-8"><title>Finalizing login…</title>';
-                echo '<p>Finalizing login…</p>';
-                echo '<script>setTimeout(function(){ location.reload(); }, 600);</script>';
-                exit;
-            }
+    if ( ! is_user_logged_in() ) {
+        echo '<!doctype html><meta charset="utf-8"><title>Finalizing login…</title>';
+        echo '<p>Finalizing login…</p>';
+        echo '<script>setTimeout(function(){ location.reload(); }, 600);</script>';
+        exit;
+    }
 
-            $token     = isset($_GET['psl_token']) ? sanitize_text_field((string) $_GET['psl_token']) : '';
-			$mode      = isset($_GET['mode']) ? sanitize_text_field((string)$_GET['mode']) : 'pdf';
-			$course_id = isset($_GET['course_id']) ? (int) $_GET['course_id'] : 0;
-			$dest      = '';
+    // Nonce verification for bridge step
+    $bridge_nonce = isset($_GET['psl_bridge_nonce']) ? sanitize_text_field( wp_unslash( $_GET['psl_bridge_nonce'] ) ) : '';
+    if ( empty($bridge_nonce) || ! wp_verify_nonce( $bridge_nonce, 'psl_bridge_' . get_current_user_id() ) ) {
+        wp_die('Invalid or missing nonce.', 'Pexelle', 403);
+    }
 
-				if ($mode === 'json') {
-					if ($course_id > 0) {
-						$dest = add_query_arg(
-							[
-								'course_id' => (int) $course_id,
-								'token'     => $token,  
-							],
-							home_url('/wp-json/psl/v1/cert-json')
-						);
-					}
-					if (empty($dest) && !empty($_GET['goto_b64'])) {
-						$maybe = base64_decode(strtr((string)$_GET['goto_b64'], '-_,', '+/='));
-						if ($maybe && preg_match('#^https?://#i', $maybe)) {
-							$dest = $maybe;
-						}
-					}
-				} else {
-                // mode=pdf (default): build fresh certificate link (fresh nonce) after cookie present
-                if ($course_id > 0 && function_exists('learndash_get_course_certificate_link')) {
-                    $fresh = (string) learndash_get_course_certificate_link($course_id, $uid);
-                    if (!empty($fresh)) $dest = $fresh;
-                }
-                // fallback if no course_id/fresh link available
-                if (empty($dest) && !empty($_GET['goto_b64'])) {
-                    $maybe = base64_decode(strtr((string)$_GET['goto_b64'], '-_,', '+/='));
-                    if ($maybe && preg_match('#^https?://#i', $maybe)) {
-                        $dest = $maybe;
-                    }
-                }
-            }
+    // Safely read GET params with unslash + sanitize
+    $token     = isset($_GET['psl_token']) ? sanitize_text_field( wp_unslash( $_GET['psl_token'] ) ) : '';
+    $mode      = isset($_GET['mode']) ? sanitize_text_field( wp_unslash( $_GET['mode'] ) ) : 'pdf';
+    $course_id = isset($_GET['course_id']) ? (int) wp_unslash( $_GET['course_id'] ) : 0;
+    $dest      = '';
 
-            if (empty($dest)) {
-                $dest = home_url('/'); // ultimate fallback
-            }
-
-            echo '<!doctype html><meta charset="utf-8"><title>Redirecting…</title>';
-            echo '<p>Redirecting…</p>';
-            echo '<script>setTimeout(function(){ location.href = ' . json_encode($dest) . ' }, 500);</script>';
-            exit;
+    if ($mode === 'json') {
+        if ($course_id > 0) {
+            $dest = add_query_arg(
+                [
+                    'course_id' => (int) $course_id,
+                    'token'     => $token,
+                ],
+                home_url('/wp-json/psl/v1/cert-json')
+            );
         }
+        if (empty($dest) && !empty($_GET['goto_b64'])) {
+            $goto_raw = sanitize_text_field( wp_unslash( $_GET['goto_b64'] ) );
+            $maybe = base64_decode( strtr($goto_raw, '-_,', '+/=') );
+            if ($maybe && preg_match('#^https?://#i', $maybe)) {
+                $dest = $maybe;
+            }
+        }
+    } else {
+        if ($course_id > 0 && function_exists('learndash_get_course_certificate_link')) {
+            /** @var int $uid — از مرحلهٔ consume ست شده */
+            $fresh = (string) learndash_get_course_certificate_link($course_id, $uid);
+            if (!empty($fresh)) $dest = $fresh;
+        }
+        if (empty($dest) && !empty($_GET['goto_b64'])) {
+            $goto_raw = sanitize_text_field( wp_unslash( $_GET['goto_b64'] ) );
+            $maybe = base64_decode( strtr($goto_raw, '-_,', '+/=') );
+            if ($maybe && preg_match('#^https?://#i', $maybe)) {
+                $dest = $maybe;
+            }
+        }
+    }
+
+    if (empty($dest)) {
+        $dest = home_url('/');
+    }
+
+    echo '<!doctype html><meta charset="utf-8"><title>Redirecting…</title>';
+    echo '<p>Redirecting…</p>';
+    echo '<script>setTimeout(function(){ location.href = ' . json_encode($dest) . ' }, 500);</script>';
+    exit;
+}
     }
 
     /** Polling endpoint */
@@ -386,10 +395,12 @@ tickTimer = setInterval(tick, 1000);
     /** AJAX: create request (Device 1) */
     public static function ajax_create_request() {
         if (!is_user_logged_in()) wp_send_json_error('not_logged_in');
+		check_ajax_referer( 'psl_magic_create', 'nonce' );
         $user_id = get_current_user_id();
-        $cert_url = isset($_POST['cert_url']) ? esc_url_raw($_POST['cert_url']) : '';
-        if (!$cert_url) wp_send_json_error('missing_cert_url');
-        $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : 'pdf'; // 'pdf' | 'json'
+      	$cert_url = isset($_POST['cert_url']) ? esc_url_raw( wp_unslash( $_POST['cert_url'] ) ) : '';
+		if (!$cert_url) wp_send_json_error('missing_cert_url');
+		$mode = isset($_POST['mode']) ? sanitize_text_field( wp_unslash( $_POST['mode'] ) ) : 'pdf';
+				
         // Parse course_id from provided certificate URL (for fresh nonce later)
         $course_id = 0;
         $parts = wp_parse_url($cert_url);
@@ -429,14 +440,20 @@ tickTimer = setInterval(tick, 1000);
     }
     /** Approve link (Device 1) */
     public static function maybe_handle_approve_link() {
-        $id = get_query_var('psl_magic_approve') ?: ($_GET['psl_magic_approve'] ?? '');
-        if (!$id) return;
-
-        $nonce = get_query_var('psl_magic_nonce') ?: ($_GET['psl_magic_nonce'] ?? '');
-        if (!wp_verify_nonce($nonce, 'psl_magic_approve_' . $id)) {
-            wp_die('Invalid approval link.', 'Pexelle', 403);
-        }
-
+		$id = get_query_var('psl_magic_approve');
+		if ( ! $id && isset($_GET['psl_magic_approve']) ) {
+		    $id = sanitize_text_field( wp_unslash( $_GET['psl_magic_approve'] ) );
+		}
+		if (!$id) return;
+		
+		$nonce = get_query_var('psl_magic_nonce');
+		if ( ! $nonce && isset($_GET['psl_magic_nonce']) ) {
+		    $nonce = sanitize_text_field( wp_unslash( $_GET['psl_magic_nonce'] ) );
+		}
+		if (!wp_verify_nonce($nonce, 'psl_magic_approve_' . $id)) {
+		    wp_die('Invalid approval link.', 'Pexelle', 403);
+		}
+				
         if (!is_user_logged_in()) {
             auth_redirect(); // force login
             return;
