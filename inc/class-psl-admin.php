@@ -12,8 +12,8 @@ final class Psl_Admin {
 
     public static function add_settings_page() {
         add_options_page(
-            __('Pexelle Share', 'psl'),
-            __('Pexelle Share', 'psl'),
+            __('Pexelle Share', 'pexelle-for-learndash'),
+            __('Pexelle Share', 'pexelle-for-learndash'),
             'manage_options',
             'psl-share',
             [__CLASS__, 'render_settings_page']
@@ -27,12 +27,12 @@ final class Psl_Admin {
             ['sanitize_callback' => [__CLASS__, 'sanitize_settings']]
         );
 
-        add_settings_section('psl_main', __('Main Settings', 'psl'), '__return_false', 'psl-share');
+        add_settings_section('psl_main', __('Main Settings', 'pexelle-for-learndash'), '__return_false', 'psl-share');
 
-        add_settings_field('enabled', __('Enable Feature', 'psl'), [__CLASS__, 'field_enabled'], 'psl-share', 'psl_main');
-        add_settings_field('button_text', __('Button Text', 'psl'), [__CLASS__, 'field_button_text'], 'psl-share', 'psl_main');
-        add_settings_field('help_install_url', __('"How to install Pexelle?" URL', 'psl'), [__CLASS__, 'field_help_install'], 'psl-share', 'psl_main');
-        add_settings_field('help_how_url', __('"How Pexelle works?" URL', 'psl'), [__CLASS__, 'field_help_how'], 'psl-share', 'psl_main');
+        add_settings_field('enabled', __('Enable Feature', 'pexelle-for-learndash'), [__CLASS__, 'field_enabled'], 'psl-share', 'psl_main');
+        add_settings_field('button_text', __('Button Text', 'pexelle-for-learndash'), [__CLASS__, 'field_button_text'], 'psl-share', 'psl_main');
+        add_settings_field('help_install_url', __('"How to install Pexelle?" URL', 'pexelle-for-learndash'), [__CLASS__, 'field_help_install'], 'psl-share', 'psl_main');
+        add_settings_field('help_how_url', __('"How Pexelle works?" URL', 'pexelle-for-learndash'), [__CLASS__, 'field_help_how'], 'psl-share', 'psl_main');
     }
 
     public static function sanitize_settings($input) {
@@ -44,34 +44,34 @@ final class Psl_Admin {
         return $out;
     }
 
-public static function render_settings_page() {
-    if (!current_user_can('manage_options')) { return; }
-    $opts = get_option(Psl_Plugin::OPTION_KEY, []);
+    public static function render_settings_page() {
+        if (!current_user_can('manage_options')) { return; }
+        $opts = get_option(Psl_Plugin::OPTION_KEY, []);
 
-    $logo_url = plugins_url('assets/images/cropped-unido-logoFS2.png', dirname(__FILE__));
-    ?>
-    <div class="wrap">
-        <div style="margin-bottom:20px;">
-            <img src="<?php echo esc_url($logo_url); ?>" alt="<?php esc_attr_e('Pexelle Logo', 'psl'); ?>" style="max-width:100%; height:auto; border-radius:8px;"/>
+        $logo_url = plugins_url('assets/images/cropped-unido-logoFS2.png', dirname(__FILE__));
+        ?>
+        <div class="wrap">
+            <div style="margin-bottom:20px;">
+                <img src="<?php echo esc_url($logo_url); ?>" alt="<?php esc_attr_e('Pexelle Logo', 'pexelle-for-learndash'); ?>" style="max-width:100%; height:auto; border-radius:8px;"/>
+            </div>
+
+            <h1><?php esc_html_e('Pexelle for LearnDash', 'pexelle-for-learndash'); ?></h1>
+
+            <form method="post" action="options.php">
+                <?php settings_fields('psl_share_group'); ?>
+                <?php do_settings_sections('psl-share'); ?>
+                <?php submit_button(); ?>
+            </form>
         </div>
-
-        <h1><?php esc_html_e('Pexelle for LearnDash', 'psl'); ?></h1>
-
-        <form method="post" action="options.php">
-            <?php settings_fields('psl_share_group'); ?>
-            <?php do_settings_sections('psl-share'); ?>
-            <?php submit_button(); ?>
-        </form>
-    </div>
-    <?php
-}
+        <?php
+    }
     
     public static function field_enabled() {
         $opts = get_option(Psl_Plugin::OPTION_KEY, []);
         ?>
         <label>
             <input type="checkbox" name="<?php echo esc_attr(Psl_Plugin::OPTION_KEY); ?>[enabled]" value="1" <?php checked(1, isset($opts['enabled']) ? $opts['enabled'] : 0); ?> />
-            <?php esc_html_e('Enable "Share to Pexelle" button & modal', 'psl'); ?>
+            <?php esc_html_e('Enable "Share to Pexelle" button & modal', 'pexelle-for-learndash'); ?>
         </label>
         <?php
     }

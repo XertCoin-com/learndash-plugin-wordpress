@@ -3,9 +3,9 @@ Contributors: pexelle
 Donate link: https://pexelle.com
 Tags: learndash, certificate, qr code, pexelle, share
 Requires at least: 6.0
-Tested up to: 6.6
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,13 @@ Currently tested on single-site WordPress. Multisite support is planned.
 3. Certificate transfer confirmation
 
 == Changelog ==
+= 1.2.3 =
+* Aligned Text Domain with plugin slug: pexelle-for-learndash.
+* Removed discouraged load_plugin_textdomain() (WP ≥ 4.6 auto-loads translations on wp.org).
+* Ensured /languages/ directory exists (POT scaffold ready).
+* Updated all i18n calls to the new text domain across templates/admin.
+* Readme updates: Tested up to: 6.8, Stable tag: 1.2.3.
+* No functional changes; maintenance release to pass automated plugin checks.
 
 = 1.2.2 =
 * Added secure token bridge for JSON/PDF certificate handoff
