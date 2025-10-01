@@ -9,7 +9,7 @@ Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connect LearnDash with the Pexelle application infrastructure through course QR scanning. Seamlessly transfer your certificates and courses to Pexelle.
+Connect LearnDash with Pexelle via QR codes. Share, verify, and export certificates with secure JSON/PDF handoff.
 
 == Description ==
 
