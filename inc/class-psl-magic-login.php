@@ -395,10 +395,12 @@ tickTimer = setInterval(tick, 1000);
     /** AJAX: create request (Device 1) */
     public static function ajax_create_request() {
         if (!is_user_logged_in()) wp_send_json_error('not_logged_in');
+		check_ajax_referer( 'psl_magic_create', 'nonce' );
         $user_id = get_current_user_id();
-        $cert_url = isset($_POST['cert_url']) ? esc_url_raw($_POST['cert_url']) : '';
-        if (!$cert_url) wp_send_json_error('missing_cert_url');
-        $mode = isset($_POST['mode']) ? sanitize_text_field($_POST['mode']) : 'pdf'; // 'pdf' | 'json'
+      	$cert_url = isset($_POST['cert_url']) ? esc_url_raw( wp_unslash( $_POST['cert_url'] ) ) : '';
+		if (!$cert_url) wp_send_json_error('missing_cert_url');
+		$mode = isset($_POST['mode']) ? sanitize_text_field( wp_unslash( $_POST['mode'] ) ) : 'pdf';
+				
         // Parse course_id from provided certificate URL (for fresh nonce later)
         $course_id = 0;
         $parts = wp_parse_url($cert_url);
