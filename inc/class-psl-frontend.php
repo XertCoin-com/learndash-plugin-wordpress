@@ -32,13 +32,14 @@ final class Psl_Frontend {
         wp_register_script('psl-frontend', PSL_PLUGIN_URL . 'assets/js/psl-frontend.js', ['psl-qrcode'], PSL_VERSION, true);
 
         $data = [
-            'buttonText'  => Psl_Plugin::get_option('button_text', 'Share to Pexelle'),
-            'helpInstall' => Psl_Plugin::get_option('help_install_url', ''),
-            'helpHow'     => Psl_Plugin::get_option('help_how_url', ''),
-            'certSelector'=> '.ld-certificate-link',
-            'ajax_url'    => admin_url('admin-ajax.php'),
-            'site_url'    => home_url('/'),
-            'ajaxNonce'   => wp_create_nonce('psl_magic_create'),
+            'buttonText'    => Psl_Plugin::get_option('button_text', 'Add to Pexelle Record'),
+            'helpInstall'   => Psl_Plugin::get_option('help_install_url', ''),
+            'helpHow'       => Psl_Plugin::get_option('help_how_url', ''),
+            'profileSelector'=> '.ld-profile-heading', // inject under username
+            'ajax_url'      => admin_url('admin-ajax.php'),
+            'site_url'      => home_url('/'),
+            'exportMode'    => 'json_all', // explicit
+            'descText'      => __('Pexelle keeps your verified achievements portable and secure.', 'pexelle-for-learndash'),
         ];
         wp_localize_script('psl-frontend', 'PSL_SETTINGS', $data);
         wp_enqueue_script('psl-frontend');
