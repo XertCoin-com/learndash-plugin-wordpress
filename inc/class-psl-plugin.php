@@ -17,7 +17,7 @@ final class Psl_Plugin {
         if (!$opts || !is_array($opts)) {
             $defaults = [
                 'enabled'         => 1,
-                'button_text'     => 'Share to Pexelle',
+                'button_text'     => 'Add to Pexelle Record',
                 'help_install_url'=> 'https://deeplink.pexelle.com/',
                 'help_how_url'    => 'https://pexelle.com/category/learning-pexelle-app/',
             ];

@@ -9,6 +9,7 @@ final class Psl_Export {
     }
 
     public static function register_rest() {
+        // Legacy: single course
         register_rest_route('psl/v1', '/cert-json', [
             'methods'  => 'GET',
             'permission_callback' => function(\WP_REST_Request $req){
@@ -32,6 +33,35 @@ final class Psl_Export {
                     'sanitize_callback' => function($value){ return (string) preg_replace('/\D+/', '', (string) $value); },
                     'validate_callback' => function($value){ return (bool) absint($value); }, // >0
                 ],
+                'token' => [
+                    'required' => false,
+                    'type'     => 'string',
+                ],
+                'use_html' => [
+                    'required' => false,
+                    'type'     => 'boolean',
+                ],
+            ]
+        ]);
+
+        // NEW: all courses for the effective user
+        register_rest_route('psl/v1', '/cert-json-all', [
+            'methods'  => 'GET',
+            'permission_callback' => function(\WP_REST_Request $req){
+                if ( is_user_logged_in() ) return true;
+
+                $token = sanitize_text_field((string)$req->get_param('token'));
+                if (!$token) return false;
+
+                $rec = get_transient('psl_json_token_' . $token);
+                if (!$rec) return false;
+                // only check that user_id is present; course_id may be 0 for "all"
+                if (empty($rec['user_id'])) return false;
+
+                return true;
+            },
+            'callback' => [__CLASS__, 'handle_all_json'],
+            'args' => [
                 'token' => [
                     'required' => false,
                     'type'     => 'string',
@@ -74,7 +104,117 @@ final class Psl_Export {
         }
         $user_id = $effective_user_id;
 
+        $payload = self::build_course_payload($course_id, $user_id, $use_html);
+
+        if ($impersonated) {
+            if ($prev_uid > 0) { wp_set_current_user($prev_uid); } else { wp_set_current_user(0); }
+        }
+
+        if ($token) {
+            delete_transient('psl_json_token_' . $token);
+        }
+
+        return new \WP_REST_Response($payload, 200);
+    }
+
+    public static function handle_all_json($request) {
+        nocache_headers();
+
+        $token    = sanitize_text_field((string) $request->get_param('token'));
+        $use_html = (bool) $request->get_param('use_html');
+
+        $effective_user_id = 0;
+        if (is_user_logged_in()) {
+            $effective_user_id = get_current_user_id();
+        } elseif ($token) {
+            $token_rec = get_transient('psl_json_token_' . $token);
+            if (is_array($token_rec) && !empty($token_rec['user_id'])) {
+                $effective_user_id = (int) $token_rec['user_id'];
+            }
+        }
+        if ($effective_user_id <= 0) {
+            return new \WP_REST_Response(['error' => 'Unauthorized'], 401);
+        }
+
+        $impersonated = false;
+        $prev_uid = get_current_user_id();
+        if ($prev_uid !== $effective_user_id) {
+            wp_set_current_user($effective_user_id);
+            $impersonated = true;
+        }
+        $user_id = $effective_user_id;
+
+        // Get all enrolled course IDs for the user
+        $course_ids = [];
+        if (function_exists('learndash_user_get_enrolled_courses')) {
+            $course_ids = (array) learndash_user_get_enrolled_courses($user_id);
+        }
+        if (empty($course_ids)) {
+            // fallback: query authored/enrolled courses heuristically
+            $course_ids = get_posts([
+                'post_type'   => 'sfwd-courses',
+                'numberposts' => -1,
+                'fields'      => 'ids',
+                'orderby'     => 'date',
+                'order'       => 'DESC',
+            ]);
+        }
+
+        $courses_payload = [];
+        $modules_total = 0;
+        $topics_total  = 0;
+
+        foreach ($course_ids as $cid) {
+            $cid = (int) $cid;
+            if ($cid <= 0 || get_post_type($cid) !== 'sfwd-courses') continue;
+
+            $one = self::build_course_payload($cid, $user_id, $use_html);
+            if (is_array($one)) {
+                $courses_payload[] = $one;
+                // aggregate totals
+                $meta = $one['meta'] ?? [];
+                $modules_total += (int)($meta['modules_count'] ?? 0);
+                $topics_total  += (int)($meta['topics_count'] ?? 0);
+            }
+        }
+
+        // user display name
+        $display_name = false;
+        $u = get_userdata($user_id);
+        if ($u) $display_name = $u->display_name ?: ($u->user_login ?: $user_id);
+
+        if ($impersonated) {
+            if ($prev_uid > 0) { wp_set_current_user($prev_uid); } else { wp_set_current_user(0); }
+        }
+
+        if ($token) {
+            delete_transient('psl_json_token_' . $token);
+        }
+
+        $out = [
+            'meta' => [
+                'courses_count' => count($courses_payload),
+                'modules_count' => $modules_total,
+                'topics_count'  => $topics_total,
+                'generated_at'  => gmdate('c'),
+            ],
+            'user' => [
+                'id'           => $user_id,
+                'display_name' => $display_name,
+            ],
+            'courses' => $courses_payload,
+        ];
+
+        return new \WP_REST_Response($out, 200);
+    }
+
+    /* ---------- Helpers ---------- */
+
+    /** Build payload for a single course, preserving existing logic */
+    private static function build_course_payload(int $course_id, int $user_id, bool $use_html) {
         $course_post = get_post($course_id);
+        if (!$course_post) return null;
+
         $course = [
             'id'          => $course_id,
             'title'       => get_the_title($course_id),
@@ -112,6 +252,7 @@ final class Psl_Export {
         }
         $course['progress'] = $progress;
 
+        // lessons
         $lessons = [];
         if (function_exists('learndash_get_lesson_list')) {
             try {
@@ -129,7 +270,6 @@ final class Psl_Export {
                     'numberposts' => -1,
                     'orderby'     => 'menu_order',
                     'order'       => 'ASC',
-                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash stores course relationship in postmeta; using LD API first, this is a guarded fallback.                 
                     'meta_query'  => [
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ]
                     ]
@@ -141,7 +281,6 @@ final class Psl_Export {
                 'numberposts' => -1,
                 'orderby'     => 'menu_order',
                 'order'       => 'ASC',
-                // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash relationship via postmeta; fallback path only.
                 'meta_query'  => [
                     [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ]
                 ]
@@ -175,36 +314,26 @@ final class Psl_Export {
                     $topics_raw = (array) $res;
                 } catch (\Throwable $e) {
                     $topics_raw = get_posts([
-                    'post_type'                 => 'sfwd-topic',
-                    'numberposts'               => -1,
-                    'orderby'                   => 'menu_order',
-                    'order'                     => 'ASC',
-                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- LearnDash stores lesson/course linkage in postmeta; API attempted first (try/catch).
-                    'meta_query'                => [
-                        [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
-                        [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
-                    ],
-                    'fields'                    => 'ids',
-                    'no_found_rows'             => true,
-                    'update_post_meta_cache'    => false,
-                    'update_post_term_cache'    => false,
-                ]);
+                        'post_type'   => 'sfwd-topic',
+                        'numberposts' => -1,
+                        'orderby'     => 'menu_order',
+                        'order'       => 'ASC',
+                        'meta_query'  => [
+                            [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
+                            [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
+                        ]
+                    ]);
                 }
             } else {
                 $topics_raw = get_posts([
-                    'post_type'                 => 'sfwd-topic',
-                    'numberposts'               => -1,
-                    'orderby'                   => 'menu_order',
-                    'order'                     => 'ASC',
-                    // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Required by LearnDash data model; safe + bounded query with fields=ids.
-                    'meta_query'                => [
+                    'post_type'   => 'sfwd-topic',
+                    'numberposts' => -1,
+                    'orderby'     => 'menu_order',
+                    'order'       => 'ASC',
+                    'meta_query'  => [
                         [ 'key' => 'lesson_id', 'value' => $lesson_id, 'compare' => '=' ],
                         [ 'key' => 'course_id', 'value' => $course_id, 'compare' => '=' ],
-                    ],
-                    'fields'                    => 'ids',
-                    'no_found_rows'             => true,
-                    'update_post_meta_cache'    => false,
-                    'update_post_term_cache'    => false,
+                    ]
                 ]);
             }
 
@@ -306,6 +435,7 @@ final class Psl_Export {
                     'passed'   => is_null($passed) ? null : (bool)$passed,
                 ];
             }
+
             $modules[] = [
                 'id'            => $lesson_id,
                 'title'         => $lesson_title,
@@ -323,23 +453,25 @@ final class Psl_Export {
             $topics_count += (int)($m['topics_count'] ?? 0);
         }
 
-        $display_name = false;
-        if ($user_id > 0) {
-            $u = get_userdata($user_id);
-            if ($u) $display_name = $u->display_name ?: ($u->user_login ?: $user_id);
-        }
+        // Keep the previous “truncate to first module/topic” behavior if present in original
+        // if (!empty($modules)) {
+        //     $firstModule = $modules[0];
+        //     if (!empty($firstModule['topics'])) {
+        //         $firstModule['topics'] = [$firstModule['topics'][0]];
+        //         $firstModule['topics_count'] = 1;
+        //     }
+        //     $modules = [$firstModule];
+        //     $modules_count = 1;
+        //     $topics_count  = !empty($firstModule['topics']) ? 1 : 0;
+        // }
 
-        $payload = [
+        return [
             'meta' => [
                 'course_id'     => $course_id,
                 'modules_count' => $modules_count,
                 'topics_count'  => $topics_count,
-                'created_at'    => $course_created,
-                'updated_at'    => $course_updated,
-            ],
-            'user' => [
-                'id'           => $user_id,
-                'display_name' => $display_name,
+                'created_at'    => self::iso_gmt( get_post_field('post_date_gmt', $course_id) ),
+                'updated_at'    => self::iso_gmt( get_post_field('post_modified_gmt', $course_id) ),
             ],
             'certificate' => [
                 'url' => $cert_url ?: null,
@@ -348,23 +480,7 @@ final class Psl_Export {
                 'modules' => $modules,
             ],
         ];
-
-        if ($impersonated) {
-            if ($prev_uid > 0) {
-                wp_set_current_user($prev_uid);
-            } else {
-                wp_set_current_user(0);
-            }
-        }
-
-        if ($token) {
-            delete_transient('psl_json_token_' . $token);
-        }
-
-        return new \WP_REST_Response($payload, 200);
     }
-
-    /* ---------- Helpers ---------- */
 
     private static function iso_gmt($post_field_gmt) {
         $v = (string) $post_field_gmt;
@@ -411,7 +527,7 @@ final class Psl_Export {
 
         return [
             'score'   => is_numeric($score)   ? (float)$score   : null,
-            'percent'  => is_numeric($percent) ? (float)$percent : null,
+            'percent' => is_numeric($percent) ? (float)$percent : null,
             'passed'  => is_null($passed) ? null : (bool)$passed,
         ];
     }
