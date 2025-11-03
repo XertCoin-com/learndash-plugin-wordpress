@@ -94,35 +94,25 @@
     }
   };
 
-  function createMagicRequest(certUrl){
+  function createMagicRequestAll(){
     if (!PSL_SETTINGS.ajax_url) {
       return Promise.reject(new Error('ajax_url not set'));
     }
-    const mode  = (PSL_SETTINGS.exportMode || 'json');
-    const nonce = (PSL_SETTINGS.ajaxNonce || '');
-    if (!nonce) {
-      console.warn('[PSL] ajaxNonce is missing; request may be rejected by server.');
-    }
-
-    const params = new URLSearchParams();
-    params.set('action', 'psl_magic_create');
-    params.set('mode', mode);
-    params.set('cert_url', certUrl);
-    if (nonce) params.set('nonce', nonce);
-
+    // action dedicated for "all courses"
+    const body = 'action=psl_magic_create_all';
     return fetch(PSL_SETTINGS.ajax_url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-      body: params.toString()
+      body
     }).then(r => r.json());
   }
 
-  function onShareClick(certUrl){
+  function onShareAllClick(){
     Modal.open('about:blank');
     if (Modal.qrEl) Modal.qrEl.innerHTML = '<p>Preparing secure link…</p>';
 
-    createMagicRequest(certUrl)
+    createMagicRequestAll()
       .then(json => {
         if (!json || !json.success || !json.data) {
           throw new Error((json && json.data) ? json.data : 'Failed to create magic link');
@@ -133,48 +123,49 @@
         Modal.renderActions(approveUrl);
       })
       .catch(err => {
-        if (Modal.qrEl) {
-          Modal.qrEl.innerHTML =
-            '<p style="color:#c00">Error: ' + (err && err.message ? err.message : 'Unknown') + '</p>';
-        }
+        if (Modal.qrEl) Modal.qrEl.innerHTML = '<p style="color:#c00">Error: ' + (err && err.message ? err.message : 'Unknown') + '</p>';
         Modal.clearActions();
       });
   }
 
-  function injectButtons() {
-    const selector = PSL_SETTINGS.certSelector || '.ld-certificate-link';
-    const certLinks = document.querySelectorAll(selector);
-    if (!certLinks || !certLinks.length) return;
+  // Inject a button + <p> under the ld-profile-heading
+function injectProfileButton() {
+  const selector = PSL_SETTINGS.profileSelector || '.ld-profile-heading';
+  const heading = document.querySelector(selector);
+  if (!heading) return;
+  if (heading.dataset.pslEnhanced === '1') return;
 
-    certLinks.forEach((a) => {
-      if (a.dataset.pslEnhanced === '1') return;
+  // Button
+  const btn = document.createElement('button');
+  btn.className = 'psl-share-btn';
+  btn.type = 'button';
+  btn.textContent = PSL_SETTINGS.buttonText || 'Add to Pexelle Record';
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    onShareAllClick();
+  });
 
-      const certUrl = a.getAttribute('href');
-      if (!certUrl) return;
+  // <p> description
+  const p = document.createElement('p');
+  p.className = 'psl-share-desc';
+  p.textContent = PSL_SETTINGS.descText || 'Pexelle keeps your verified achievements portable and secure.';
 
-      const btn = document.createElement('button');
-      btn.className = 'psl-share-btn';
-      btn.type = 'button';
-      btn.textContent = PSL_SETTINGS.buttonText || 'Share to Pexelle';
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        onShareClick(certUrl);
-      });
+  // Insert in desired order: button first, then p
+  heading.insertAdjacentElement('afterend', btn);
+  btn.insertAdjacentElement('afterend', p);
 
-      a.insertAdjacentElement('afterend', btn);
-      a.dataset.pslEnhanced = '1';
-    });
-  }
+  heading.dataset.pslEnhanced = '1';
+}
 
-  function watchForCertificates() {
-    injectButtons();
-    const mo = new MutationObserver(() => injectButtons());
+  function watchForProfileHeading() {
+    injectProfileButton();
+    const mo = new MutationObserver(() => injectProfileButton());
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     Modal.mount();
-    watchForCertificates();
+    watchForProfileHeading(); // only profile injection; no cert-link buttons anymore
   });
 
 })();
