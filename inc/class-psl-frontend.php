@@ -47,7 +47,7 @@ final class Psl_Frontend {
 
     public static function inject_modal() {
         if (!self::is_enabled()) { return; }
-        if (!is_admin()) {
+        if (!is_admin() && is_user_logged_in()) {
             include PSL_PLUGIN_DIR . 'templates/modal.php';
         }
     }
